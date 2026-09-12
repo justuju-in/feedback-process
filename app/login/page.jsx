@@ -2,17 +2,31 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Eye, EyeOff, LockKeyhole } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
+  const emailRef = useRef(null);
+  const passwordRef = useRef(null);
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    const clearLoginFields = () => {
+      setForm({ email: "", password: "" });
+      if (emailRef.current) emailRef.current.value = "";
+      if (passwordRef.current) passwordRef.current.value = "";
+    };
+
+    clearLoginFields();
+    const clearTimer = window.setTimeout(clearLoginFields, 100);
+    return () => window.clearTimeout(clearTimer);
+  }, []);
+
   function updateField(event) {
-    setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
+    setForm((current) => ({ ...current, [event.target.dataset.field]: event.target.value }));
   }
 
   async function handleSubmit(event) {
@@ -66,22 +80,26 @@ export default function LoginPage() {
             Enter your email and password to continue.
           </p>
 
-          <form className="mt-8 grid gap-5" onSubmit={handleSubmit}>
+          <form autoComplete="off" className="mt-8 grid gap-5" onSubmit={handleSubmit}>
             <AuthField
-              autoComplete="email"
+              autoComplete="off"
+              fieldName="email"
               id="email"
               label="Email address"
               onChange={updateField}
               placeholder="you@example.com"
+              inputRef={emailRef}
               type="email"
               value={form.email}
             />
             <AuthField
-              autoComplete="current-password"
+              autoComplete="new-password"
+              fieldName="password"
               id="password"
               label="Password"
               onChange={updateField}
               placeholder="Enter your password"
+              inputRef={passwordRef}
               type="password"
               value={form.password}
             />
@@ -113,8 +131,9 @@ export default function LoginPage() {
   );
 }
 
-function AuthField({ autoComplete, id, label, onChange, placeholder, type, value }) {
+function AuthField({ autoComplete, fieldName, id, inputRef, label, onChange, placeholder, type, value }) {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [isEditable, setIsEditable] = useState(false);
   const isPasswordField = type === "password";
 
   return (
@@ -134,9 +153,13 @@ function AuthField({ autoComplete, id, label, onChange, placeholder, type, value
             isPasswordField ? "pl-11 pr-11" : ""
           }`}
           id={id}
-          name={id}
+          data-field={fieldName}
+          name={`feedback-${fieldName}`}
           onChange={onChange}
+          onFocus={() => setIsEditable(true)}
           placeholder={placeholder}
+          readOnly={!isEditable}
+          ref={inputRef}
           required
           type={isPasswordField && isPasswordVisible ? "text" : type}
           value={value}

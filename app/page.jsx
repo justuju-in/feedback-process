@@ -408,7 +408,7 @@ export default function Home() {
 
     try {
       await api("/auth/logout", { method: "POST" });
-      router.replace("/login");
+      router.replace("/login?loggedOut=1");
     } catch (logoutError) {
       setError(logoutError.message || "Could not log out. Please try again.");
       setIsLoggingOut(false);
