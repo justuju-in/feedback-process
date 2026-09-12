@@ -1,3 +1,4 @@
+import { getPrimaryFrontendOrigin } from "../config/frontendOrigin.js";
 import { getDatabasePool } from "../db/connection.js";
 import {
   sendFeedbackDueDateChangedNotification,
@@ -146,7 +147,7 @@ export async function sendScheduledFeedbackReminders() {
         name: feedbackRequest.giverName,
         subject: isOverdue ? "Feedback request is overdue" : isDueToday ? "Feedback request due today" : "Feedback request due in 2 days",
         message: reminderText,
-        actionUrl: process.env.FRONTEND_ORIGIN || undefined,
+        actionUrl: getPrimaryFrontendOrigin(),
       });
       emailSent = true;
     } catch (error) {
@@ -307,7 +308,7 @@ export async function createFeedbackRequest({
       name: feedbackRequest.giverName,
       subject: "New feedback request",
       message: `${feedbackRequest.requesterName} requested ${feedbackRequest.templateName} feedback from you.`,
-      actionUrl: process.env.FRONTEND_ORIGIN || undefined,
+      actionUrl: getPrimaryFrontendOrigin(),
     });
   } catch (error) {
     console.error("Feedback request email failed:", error.message);

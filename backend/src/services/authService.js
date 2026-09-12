@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 
+import { getPrimaryFrontendOrigin } from "../config/frontendOrigin.js";
 import { getDatabasePool } from "../db/connection.js";
 import { sendEmailVerificationEmail, sendPasswordResetEmail } from "../integrations/email.js";
 import { ServiceError } from "./serviceError.js";
@@ -101,7 +102,7 @@ export async function registerUser({ name, email, password }) {
       [crypto.randomUUID(), user.id, tokenHash],
     );
     await connection.commit();
-    const frontendOrigin = (process.env.FRONTEND_ORIGIN || "http://localhost:3000").split(",")[0].trim();
+    const frontendOrigin = getPrimaryFrontendOrigin();
     await sendEmailVerificationEmail({ email: user.email, name: user.name, verificationUrl: `${frontendOrigin}/verify-email?token=${token}` });
     return user;
   } catch (error) {
@@ -248,9 +249,7 @@ export async function createPasswordResetRequest({ email }) {
     );
     await connection.commit();
 
-    const frontendOrigin = (process.env.FRONTEND_ORIGIN || "http://localhost:3000")
-      .split(",")[0]
-      .trim();
+    const frontendOrigin = getPrimaryFrontendOrigin();
     const resetUrl = `${frontendOrigin}/reset-password?token=${token}`;
 
     try {

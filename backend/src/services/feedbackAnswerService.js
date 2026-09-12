@@ -1,3 +1,4 @@
+import { getPrimaryFrontendOrigin } from "../config/frontendOrigin.js";
 import { getDatabasePool } from "../db/connection.js";
 import { sendFeedbackSubmittedNotification } from "../integrations/mattermost.js";
 import { sendFeedbackEmail } from "../integrations/email.js";
@@ -152,7 +153,7 @@ export async function submitFeedbackAnswers(requestId, giverId, answers) {
       name: feedbackRequest.receiverName,
       subject: "Feedback received",
       message: `${feedbackRequest.isAnonymous ? "Anonymous feedback" : `${feedbackRequest.giverName}'s feedback`} for ${feedbackRequest.templateName} is ready to review.`,
-      actionUrl: process.env.FRONTEND_ORIGIN || undefined,
+      actionUrl: getPrimaryFrontendOrigin(),
     });
   } catch (error) {
     console.error("Feedback submitted email failed:", error.message);
