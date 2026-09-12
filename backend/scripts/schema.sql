@@ -368,32 +368,6 @@ PREPARE add_acknowledged_at_column_statement FROM @add_acknowledged_at_column;
 EXECUTE add_acknowledged_at_column_statement;
 DEALLOCATE PREPARE add_acknowledged_at_column_statement;
 
-CREATE TABLE IF NOT EXISTS feedback_discussions (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  request_id INT NOT NULL,
-  answer_id INT NULL,
-  parent_id INT NULL,
-  author_id INT NOT NULL,
-  type VARCHAR(30) NOT NULL,
-  message TEXT NOT NULL,
-  status VARCHAR(20) NOT NULL DEFAULT 'open',
-  resolved_at TIMESTAMP NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (request_id) REFERENCES feedback_requests(id),
-  FOREIGN KEY (answer_id) REFERENCES feedback_answers(id),
-  FOREIGN KEY (parent_id) REFERENCES feedback_discussions(id),
-  FOREIGN KEY (author_id) REFERENCES users(id)
-);
-
-SET @add_discussion_answer_id_column = (
-  SELECT IF(COUNT(*) = 0, 'ALTER TABLE feedback_discussions ADD COLUMN answer_id INT NULL AFTER request_id', 'SELECT 1')
-  FROM information_schema.columns
-  WHERE table_schema = DATABASE() AND table_name = 'feedback_discussions' AND column_name = 'answer_id'
-);
-PREPARE add_discussion_answer_id_column_statement FROM @add_discussion_answer_id_column;
-EXECUTE add_discussion_answer_id_column_statement;
-DEALLOCATE PREPARE add_discussion_answer_id_column_statement;
-
 -- Keeps automated reminders idempotent: restarting the API must not send the
 -- same due-date reminder or overdue alert again.
 CREATE TABLE IF NOT EXISTS feedback_notification_log (
@@ -505,6 +479,35 @@ CREATE TABLE IF NOT EXISTS feedback_answers (
   FOREIGN KEY (request_id) REFERENCES feedback_requests(id),
   FOREIGN KEY (question_id) REFERENCES template_questions(id)
 );
+
+-- This table refers to feedback_answers, so it must be created after the
+-- answers table. Keeping that order lets a brand-new MySQL database start
+-- cleanly in Docker as well as on a regular server.
+CREATE TABLE IF NOT EXISTS feedback_discussions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  request_id INT NOT NULL,
+  answer_id INT NULL,
+  parent_id INT NULL,
+  author_id INT NOT NULL,
+  type VARCHAR(30) NOT NULL,
+  message TEXT NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'open',
+  resolved_at TIMESTAMP NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (request_id) REFERENCES feedback_requests(id),
+  FOREIGN KEY (answer_id) REFERENCES feedback_answers(id),
+  FOREIGN KEY (parent_id) REFERENCES feedback_discussions(id),
+  FOREIGN KEY (author_id) REFERENCES users(id)
+);
+
+SET @add_discussion_answer_id_column = (
+  SELECT IF(COUNT(*) = 0, 'ALTER TABLE feedback_discussions ADD COLUMN answer_id INT NULL AFTER request_id', 'SELECT 1')
+  FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'feedback_discussions' AND column_name = 'answer_id'
+);
+PREPARE add_discussion_answer_id_column_statement FROM @add_discussion_answer_id_column;
+EXECUTE add_discussion_answer_id_column_statement;
+DEALLOCATE PREPARE add_discussion_answer_id_column_statement;
 
 CREATE TABLE IF NOT EXISTS feedback_answer_drafts (
   request_id INT NOT NULL PRIMARY KEY,
