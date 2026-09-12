@@ -7,7 +7,9 @@ RUN npm ci
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=dependencies /app/node_modules ./node_modules
+
 COPY . .
+ENV API_PROXY_TARGET=http://backend:5000
 RUN npm run build
 
 FROM node:20-alpine AS runner
