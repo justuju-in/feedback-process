@@ -101,9 +101,9 @@ export async function registerUser({ name, email, password }) {
       "INSERT INTO email_verification_tokens (id, user_id, token_hash, expires_at) VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL 24 HOUR))",
       [crypto.randomUUID(), user.id, tokenHash],
     );
-    await connection.commit();
     const frontendOrigin = getPrimaryFrontendOrigin();
     await sendEmailVerificationEmail({ email: user.email, name: user.name, verificationUrl: `${frontendOrigin}/verify-email?token=${token}` });
+    await connection.commit();
     return user;
   } catch (error) {
     await connection.rollback();
@@ -226,7 +226,7 @@ export async function createPasswordResetRequest({ email }) {
 
   try {
     const [[user]] = await connection.execute(
-      "SELECT id, name, email FROM users WHERE email = ? AND is_active = TRUE",
+      "SELECT id, name, email FROM users WHERE email = ?",
       [normalizedEmail],
     );
 
@@ -332,11 +332,15 @@ export async function resetUserPassword({ token, newPassword }) {
     );
 
     const [updateUserResult] = await connection.execute(
-      "UPDATE users SET password_hash = ? WHERE id = ? AND is_active = TRUE",
+      `UPDATE users
+       SET password_hash = ?,
+           is_active = TRUE,
+           email_verified_at = COALESCE(email_verified_at, NOW())
+       WHERE id = ?`,
       [passwordHash, resetToken.userId],
     );
     if (updateUserResult.affectedRows !== 1) {
-      throw new ServiceError(400, "This account is inactive");
+      throw new ServiceError(400, "Could not update this account");
     }
 
     await connection.execute(
