@@ -432,7 +432,7 @@ export default function Home() {
 
       <MobileNavigation activePage={activePage} showSCReview={isSafetyReviewer} showAnalytics={canViewAnalytics} showPeople={canManagePeople} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
 
-      <div className={`grid min-w-0 flex-1 ${isCreateOpen ? "xl:grid-cols-[260px_minmax(0,1fr)_minmax(360px,420px)]" : "xl:grid-cols-[260px_minmax(0,1fr)]"}`}>
+      <div className="grid min-w-0 flex-1 xl:grid-cols-[260px_minmax(0,1fr)]">
         <Sidebar activePage={activePage} showSCReview={isSafetyReviewer} showAnalytics={canViewAnalytics} showPeople={canManagePeople} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
 
         <main className="min-w-0 border-x border-line/70 bg-white/55 px-5 py-7 backdrop-blur-sm sm:px-7 sm:py-8 lg:px-9 xl:px-10">
@@ -1126,11 +1126,12 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
   const manageableTemplates = templates.filter((template) => template.createdBy != null && (canModerateTemplates || template.createdBy === currentUserId));
 
   return (
-    <aside className="min-w-0 border-l border-line/80 bg-white/95 px-6 py-6 shadow-[-10px_0_30px_rgba(15,23,42,0.08)] backdrop-blur-sm sm:px-7 sm:py-7 lg:sticky lg:top-[72px] lg:max-h-[calc(100vh-72px)] lg:self-start lg:overflow-y-scroll">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/35 p-3 backdrop-blur-[2px] sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-labelledby="request-feedback-title">
+    <aside className="my-auto w-full max-w-2xl overflow-y-auto rounded-2xl border border-line/80 bg-white px-5 py-5 shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:px-7 sm:py-7">
       <div className="mb-6 flex items-center justify-between gap-4">
         <div>
           <p className="mb-1 text-sm font-bold uppercase tracking-wide text-blue-600">{replacementRequest ? "Replacement request" : "New request"}</p>
-          <h2 className="text-3xl font-bold tracking-tight text-[#111827]">{replacementRequest ? `Ask ${replacementRequest.alternateGiverName}` : "Request feedback"}</h2>
+          <h2 id="request-feedback-title" className="text-3xl font-bold tracking-tight text-[#111827]">{replacementRequest ? `Ask ${replacementRequest.alternateGiverName}` : "Request feedback"}</h2>
           <p className="mt-2 text-sm text-muted">Sending as {currentUser.name}</p>
         </div>
         <button className="rounded-lg p-2 text-muted transition hover:bg-slate-100 hover:text-ink" type="button" aria-label="Close request form" onClick={onClose}>
@@ -1446,6 +1447,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
         ) : null}
       </form>
     </aside>
+    </div>
   );
 }
 
