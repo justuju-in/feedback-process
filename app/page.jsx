@@ -27,7 +27,15 @@ async function api(path, options) {
     credentials: "include",
     headers: { "Content-Type": "application/json", ...(options?.headers || {}) },
   });
-  const data = await response.json();
+  const responseText = await response.text();
+  let data = null;
+  try {
+    data = responseText ? JSON.parse(responseText) : {};
+  } catch {
+    const error = new Error("The app was temporarily updating. Please refresh the page and try again.");
+    error.status = response.status;
+    throw error;
+  }
   if (!response.ok) {
     const error = new Error(data.message || "Something went wrong");
     error.status = response.status;
@@ -465,7 +473,7 @@ export default function Home() {
           </section>
 
           <section className="mt-7 grid gap-5 xl:grid-cols-3">
-            <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><p className="text-sm font-bold uppercase tracking-wide text-blue-600">Quick actions</p><h2 className="mt-1 text-xl font-bold text-slate-950">What would you like to do?</h2><p className="mt-2 text-sm text-muted">Start a new request or check feedback waiting for you.</p><div className="mt-5 flex flex-wrap gap-3"><button className={primaryButton} type="button" onClick={() => { setReplacementRequest(null); setIsCreateOpen(true); }}><Plus size={17} /> Request feedback</button><button className={secondaryButton} type="button" onClick={() => setActivePage("requests")}>View requests ({pendingForMe.length})</button></div></article>
+            <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><p className="text-sm font-bold uppercase tracking-wide text-blue-600">Quick actions</p><h2 className="mt-1 text-xl font-bold text-slate-950">What would you like to do?</h2><p className="mt-2 text-sm text-muted">Start a new request or check feedback waiting for you.</p><div className="mt-5 flex flex-wrap gap-3"><button className={primaryButton} type="button" onClick={() => { setError(""); setReplacementRequest(null); setIsCreateOpen(true); }}><Plus size={17} /> Request feedback</button><button className={secondaryButton} type="button" onClick={() => setActivePage("requests")}>View requests ({pendingForMe.length})</button></div></article>
             <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><p className="text-sm font-bold uppercase tracking-wide text-amber-600">Upcoming due dates</p><h2 className="mt-1 text-xl font-bold text-slate-950">Keep on track</h2><div className="mt-4 grid gap-2">{upcomingRequests.length ? upcomingRequests.map((request) => <div key={request.id} className="flex justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm"><span className="font-semibold">{request.type}</span><span className="font-bold text-amber-700">{request.dueDate}</span></div>) : <p className="text-sm text-muted">No upcoming due dates.</p>}</div></article>
             <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><p className="text-sm font-bold uppercase tracking-wide text-violet-600">Recent activity</p><h2 className="mt-1 text-xl font-bold text-slate-950">Latest updates</h2><div className="mt-4 grid gap-2">{tableRows.slice(0, 3).map((request) => <button key={request.id} type="button" onClick={() => void openRequest(request.id)} className="rounded-lg bg-slate-50 px-3 py-2 text-left text-sm transition hover:bg-violet-50"><p className="font-semibold text-slate-800">{request.type}</p><p className="mt-1 text-muted">{request.status} · {request.giverName}</p></button>)}</div></article>
           </section>
@@ -939,6 +947,12 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
       setTemplateId(templates[0]?.id ?? "");
     }
   }, [templateId, templates]);
+
+  // A duplicate warning belongs to the previous selection. Remove it as soon
+  // as the user changes the people, purpose, feedback type, or due date.
+  useEffect(() => {
+    setNotice(null);
+  }, [giverId, receiverId, templateId, purpose, dueDate]);
 
   useEffect(() => {
     if (!replacementRequest) return;
