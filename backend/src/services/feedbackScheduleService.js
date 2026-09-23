@@ -164,16 +164,29 @@ export async function runDueFeedbackSchedules() {
         await connection.commit();
         continue;
       }
-      const [inserted] = await connection.execute(
-        `INSERT INTO feedback_requests
-         (requester_id, giver_id, receiver_id, template_id, message, due_date, purpose, visibility, status)
-         VALUES (?, ?, ?, ?, ?, DATE_ADD(CURRENT_DATE(), INTERVAL ? DAY), ?, ?, 'requested')`,
-        [schedule.requester_id, schedule.giver_id, schedule.receiver_id, schedule.template_id, schedule.message, schedule.due_in_days, schedule.purpose, schedule.visibility],
+      const [[openRequest]] = await connection.execute(
+        `SELECT id FROM feedback_requests
+         WHERE requester_id = ?
+           AND giver_id = ?
+           AND receiver_id = ?
+           AND template_id = ?
+           AND status IN ('requested', 'in_progress', 'overdue', 'submitted', 'acknowledged', 'follow_up_needed')
+         LIMIT 1`,
+        [schedule.requester_id, schedule.giver_id, schedule.receiver_id, schedule.template_id],
       );
-      requestId = inserted.insertId;
-      const [viewers] = await connection.execute("SELECT user_id AS userId FROM feedback_schedule_viewers WHERE schedule_id = ?", [id]);
-      for (const viewer of viewers) {
-        await connection.execute("INSERT INTO feedback_request_viewers (request_id, user_id) VALUES (?, ?)", [requestId, viewer.userId]);
+
+      if (!openRequest) {
+        const [inserted] = await connection.execute(
+          `INSERT INTO feedback_requests
+           (requester_id, giver_id, receiver_id, template_id, message, due_date, purpose, visibility, status)
+           VALUES (?, ?, ?, ?, ?, DATE_ADD(CURRENT_DATE(), INTERVAL ? DAY), ?, ?, 'requested')`,
+          [schedule.requester_id, schedule.giver_id, schedule.receiver_id, schedule.template_id, schedule.message, schedule.due_in_days, schedule.purpose, schedule.visibility],
+        );
+        requestId = inserted.insertId;
+        const [viewers] = await connection.execute("SELECT user_id AS userId FROM feedback_schedule_viewers WHERE schedule_id = ?", [id]);
+        for (const viewer of viewers) {
+          await connection.execute("INSERT INTO feedback_request_viewers (request_id, user_id) VALUES (?, ?)", [requestId, viewer.userId]);
+        }
       }
       const followingDate = nextDate(String(schedule.next_run_date).slice(0, 10), schedule.frequency);
       const isFinished = schedule.frequency === "once" || (schedule.end_date && followingDate > String(schedule.end_date).slice(0, 10));

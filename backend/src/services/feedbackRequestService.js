@@ -250,7 +250,7 @@ export async function createFeedbackRequest({
        AND giver_id = ?
        AND receiver_id = ?
        AND template_id = ?
-       AND status IN ('requested', 'in_progress', 'overdue')
+       AND status IN ('requested', 'in_progress', 'overdue', 'submitted', 'acknowledged', 'follow_up_needed')
      LIMIT 1`,
     [requesterId, giverId, receiverId, templateId],
   );
