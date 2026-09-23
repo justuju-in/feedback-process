@@ -1086,6 +1086,11 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
   }
 
   async function editTemplate(template) {
+    if (template.createdBy == null) {
+      setNoticeTone("error");
+      setNotice("Built-in feedback types cannot be edited. Use Custom to create your own questions.");
+      return;
+    }
     try {
       const data = await api(`/templates/${template.id}/questions`);
       setEditingTemplateId(template.id);
@@ -1101,6 +1106,11 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
   }
 
   async function deactivateTemplate(template) {
+    if (template.createdBy == null) {
+      setNoticeTone("error");
+      setNotice("Built-in feedback types are always available and cannot be disabled.");
+      return;
+    }
     const result = await onSetTemplateStatus(template.id, false);
     if (!result.ok) {
       setNoticeTone("error");
@@ -1113,7 +1123,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
   }
 
   const canModerateTemplates = String(currentUser?.role || "").toLowerCase() === "admin";
-  const manageableTemplates = templates.filter((template) => canModerateTemplates || template.createdBy === currentUserId);
+  const manageableTemplates = templates.filter((template) => template.createdBy != null && (canModerateTemplates || template.createdBy === currentUserId));
 
   return (
     <aside className="min-w-0 border-l border-line/80 bg-white/95 px-6 py-6 shadow-[-10px_0_30px_rgba(15,23,42,0.08)] backdrop-blur-sm sm:px-7 sm:py-7 lg:sticky lg:top-[72px] lg:max-h-[calc(100vh-72px)] lg:self-start lg:overflow-y-scroll">

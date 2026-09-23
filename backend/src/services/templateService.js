@@ -195,6 +195,9 @@ async function findTemplateForManagement(connection, templateId) {
 }
 
 function assertCanManageTemplate(template, actorId, actorRole) {
+  if (template.createdBy == null) {
+    throw new ServiceError(403, "Built-in feedback types cannot be changed");
+  }
   if (canModerate(actorRole)) return;
   if (template.createdBy === actorId) return;
   throw new ServiceError(403, "You can manage only templates you created");
