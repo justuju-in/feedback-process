@@ -645,20 +645,14 @@ export async function createFeedbackDiscussion({ requestId, actorId, type, messa
 
     if (actorId === request.receiverId) {
       if (parentId) throw new ServiceError(400, "Only the feedback giver can reply to a clarification");
-      if (type !== "comment") {
-        throw new ServiceError(400, "Only one feedback comment can be added");
+      if (!["clarification", "disagreement", "support", "comment"].includes(type)) {
+        throw new ServiceError(400, "type must be clarification, disagreement, support, or comment");
       }
-      const [[existingComment]] = await connection.execute(
-        `SELECT id FROM feedback_discussions
-         WHERE request_id = ? AND author_id = ? AND type = 'comment'
-         LIMIT 1`,
-        [requestId, actorId],
-      );
-      if (existingComment) throw new ServiceError(409, "You can add only one comment to this feedback");
+      const isComment = type === "comment";
       await connection.execute(
         `INSERT INTO feedback_discussions (request_id, answer_id, author_id, type, message, status)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [requestId, answerId, actorId, type, normalizedMessage, "resolved"],
+        [requestId, answerId, actorId, type, normalizedMessage, isComment ? "resolved" : "open"],
       );
     } else if (actorId === request.giverId) {
       if (type !== "response" || !parentId) {
