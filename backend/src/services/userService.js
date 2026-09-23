@@ -64,12 +64,8 @@ export async function setUserActive({ userId, actorId, isActive }) {
       affectedRequests = requests;
 
       for (const request of requests) {
-        const isWaitingForGiver = Number(request.giverId) === Number(userId)
-          && ["requested", "in_progress", "overdue"].includes(request.status);
-        const status = isWaitingForGiver ? "declined" : "cancelled";
-        const reason = isWaitingForGiver
-          ? "Feedback giver account was deactivated. Please choose a new feedback giver."
-          : "This feedback request was cancelled because a participant account was deactivated.";
+        const status = "cancelled";
+        const reason = "This feedback request was cancelled because a participant account was deactivated.";
         await connection.execute(
           "UPDATE feedback_requests SET status = ?, decline_reason = ? WHERE id = ?",
           [status, reason, request.id],
