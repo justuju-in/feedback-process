@@ -73,6 +73,7 @@ export default function Home() {
 
   const currentUser = users.find((user) => user.id === currentUserId);
   const isSCReviewer = ["sc", "admin", "hr"].includes(String(currentUser?.role || "").toLowerCase());
+  const isSafetyReviewer = String(currentUser?.role || "").toLowerCase() === "sc";
   const selectedRequestId = selectedRequest?.id;
   const pendingForMe = requests.filter(
     (request) => request.giverId === currentUserId && ["requested", "in_progress", "overdue"].includes(request.status),
@@ -433,10 +434,10 @@ export default function Home() {
     <div className="flex min-h-screen flex-col bg-gradient-to-br from-[#f6f8ff] via-[#fbfcfe] to-[#eef7ff] text-ink">
       <AppHeader currentUser={currentUser} onLogout={handleLogout} isLoggingOut={isLoggingOut} notifications={notifications} onNotificationRead={markNotificationRead} onReadAll={markAllNotificationsRead} onOpenRequest={(requestId) => void openRequest(requestId)} />
 
-      <MobileNavigation activePage={activePage} showSCReview={isSCReviewer} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
+      <MobileNavigation activePage={activePage} showSCReview={isSafetyReviewer} showManagement={isSCReviewer} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
 
       <div className={`grid flex-1 ${isCreateOpen ? "xl:grid-cols-[260px_1fr_420px]" : "xl:grid-cols-[260px_1fr]"}`}>
-        <Sidebar activePage={activePage} showSCReview={isSCReviewer} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
+        <Sidebar activePage={activePage} showSCReview={isSafetyReviewer} showManagement={isSCReviewer} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
 
         <main className="border-x border-line/70 bg-white/55 px-5 py-7 backdrop-blur-sm sm:px-7 sm:py-8 lg:px-9 xl:px-10">
           <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -483,7 +484,7 @@ export default function Home() {
           {schedules.length ? <section className="mt-5 rounded-2xl border border-line/80 bg-white p-6 shadow-[0_10px_30px_rgba(15,23,42,0.06)]"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-bold uppercase tracking-wide text-violet-600">Scheduled feedback</p><h2 className="mt-1 text-xl font-bold text-slate-950">Your schedules</h2></div><span className="rounded-full bg-violet-50 px-3 py-1 text-sm font-semibold text-violet-700">{schedules.filter((schedule) => schedule.isActive).length} active</span></div><div className="mt-4 grid gap-3">{schedules.map((schedule) => <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3" key={schedule.id}><div><p className="font-semibold text-slate-900">{schedule.templateName} · {schedule.giverName} → {schedule.receiverName}</p><p className="mt-1 text-sm text-muted">{schedule.frequency === "once" ? `One time at ${schedule.scheduledTime || "scheduled time"}` : schedule.frequency === "quarterly" ? "Every 3 months" : "Monthly"} · Next request: {formatDueDate(schedule.nextRunDate)} · {schedule.dueInDays} days to respond</p></div><button className={secondaryButton} type="button" onClick={() => void setScheduleStatus(schedule.id, !schedule.isActive)}>{schedule.isActive ? "Pause" : "Resume"}</button></div>)}</div></section> : null}
           </> : null}
 
-          {activePage === "reports" && isSCReviewer ? <SCReportReview reports={reports} onReview={(reportId, status) => void reviewReport(reportId, status)} onOpenRequest={(requestId) => void openRequest(requestId)} /> : null}
+          {activePage === "reports" && isSafetyReviewer ? <SCReportReview reports={reports} onReview={(reportId, status) => void reviewReport(reportId, status)} onOpenRequest={(requestId) => void openRequest(requestId)} /> : null}
           {activePage === "people" && isSCReviewer ? <PeopleManagement users={users} currentUserId={currentUserId} onUpdateStatus={(user, isActive) => void updateUserStatus(user, isActive)} onUpdateRole={(user, role) => void updateUserRole(user, role)} /> : null}
           {activePage === "analytics" && isSCReviewer ? <AnalyticsDashboard analytics={analytics} /> : null}
 
@@ -728,12 +729,13 @@ function AppHeader({ currentUser, onLogout, isLoggingOut, notifications, onNotif
   );
 }
 
-function MobileNavigation({ activePage, showSCReview, onSelect }) {
+function MobileNavigation({ activePage, showSCReview, showManagement, onSelect }) {
   const items = [
     { page: "dashboard", label: "Dashboard", icon: <HomeIcon size={17} /> },
     { page: "requests", label: "Requests", icon: <Inbox size={17} /> },
     { page: "history", label: "History", icon: <HistoryIcon size={17} /> },
-    ...(showSCReview ? [{ page: "reports", label: "SC Review", icon: <Inbox size={17} /> }, { page: "analytics", label: "Analytics", icon: <BarChart3 size={17} /> }, { page: "people", label: "People", icon: <UsersRound size={17} /> }] : []),
+    ...(showSCReview ? [{ page: "reports", label: "SC Review", icon: <Inbox size={17} /> }] : []),
+    ...(showManagement ? [{ page: "analytics", label: "Analytics", icon: <BarChart3 size={17} /> }, { page: "people", label: "People", icon: <UsersRound size={17} /> }] : []),
   ];
 
   return (
@@ -765,7 +767,7 @@ function AppFooter() {
   );
 }
 
-function Sidebar({ activePage, showSCReview, onSelect }) {
+function Sidebar({ activePage, showSCReview, showManagement, onSelect }) {
   return (
     <aside className="hidden border-r border-indigo-400/25 bg-[#252d70] px-4 py-8 text-slate-200 xl:flex xl:flex-col">
       <p className="mb-3 px-3 text-xs font-bold uppercase tracking-[0.14em] text-indigo-200/70">Workspace</p>
@@ -774,8 +776,8 @@ function Sidebar({ activePage, showSCReview, onSelect }) {
         <SidebarItem active={activePage === "requests"} icon={<Inbox size={22} />} label="Feedback Requests" onClick={() => onSelect("requests")} />
         <SidebarItem active={activePage === "history"} icon={<HistoryIcon size={22} />} label="Feedback History" onClick={() => onSelect("history")} />
         {showSCReview ? <SidebarItem active={activePage === "reports"} icon={<Inbox size={22} />} label="SC Team Review" onClick={() => onSelect("reports")} /> : null}
-        {showSCReview ? <SidebarItem active={activePage === "analytics"} icon={<BarChart3 size={22} />} label="Team analytics" onClick={() => onSelect("analytics")} /> : null}
-        {showSCReview ? <SidebarItem active={activePage === "people"} icon={<UsersRound size={22} />} label="People" onClick={() => onSelect("people")} /> : null}
+        {showManagement ? <SidebarItem active={activePage === "analytics"} icon={<BarChart3 size={22} />} label="Team analytics" onClick={() => onSelect("analytics")} /> : null}
+        {showManagement ? <SidebarItem active={activePage === "people"} icon={<UsersRound size={22} />} label="People" onClick={() => onSelect("people")} /> : null}
       </nav>
     </aside>
   );

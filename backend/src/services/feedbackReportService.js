@@ -4,7 +4,9 @@ import { sendSafetyReportEmail } from "../integrations/email.js";
 import { ServiceError } from "./serviceError.js";
 import { writeFeedbackAuditEvent } from "./feedbackAuditService.js";
 
-const reviewRoles = new Set(["admin", "hr", "sc"]);
+// Safety reports are a confidential SC Team workflow, separate from ordinary
+// feedback administration and HR access.
+const reviewRoles = new Set(["sc"]);
 
 async function requireReportAccess(pool, requestId, userId) {
   const [[request]] = await pool.execute(
@@ -57,7 +59,7 @@ export async function createFeedbackReport({ requestId, reporterId, reason, deta
 async function requireReviewer(pool, reviewerId) {
   const [[reviewer]] = await pool.execute("SELECT role FROM users WHERE id = ?", [reviewerId]);
   if (!reviewer || !reviewRoles.has(String(reviewer.role).toLowerCase())) {
-    throw new ServiceError(403, "Only an SC Team reviewer can access feedback reports");
+    throw new ServiceError(403, "Only the SC Team can access confidential feedback reports");
   }
 }
 
