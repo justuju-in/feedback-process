@@ -16,6 +16,7 @@ import {
 } from "../services/feedbackRequestService.js";
 import { respondWithError } from "./respondWithError.js";
 import { writeFeedbackAuditEvent } from "../services/feedbackAuditService.js";
+import { getDatabasePool } from "../db/connection.js";
 
 const allowedActions = ["start", "decline", "cancel", "acknowledge", "close", "hide", "remove", "reopen"];
 
