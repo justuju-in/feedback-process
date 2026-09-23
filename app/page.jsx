@@ -900,6 +900,8 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
   const [giverId, setGiverId] = useState("");
   const [receiverId, setReceiverId] = useState(String(currentUserId || ""));
   const [templateId, setTemplateId] = useState("");
+  const [templatePreviewQuestions, setTemplatePreviewQuestions] = useState([]);
+  const [isLoadingTemplatePreview, setIsLoadingTemplatePreview] = useState(false);
   const [message, setMessage] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [purpose, setPurpose] = useState("growth");
@@ -947,6 +949,27 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
       setTemplateId(templates[0]?.id ?? "");
     }
   }, [templateId, templates]);
+
+  useEffect(() => {
+    const selectedTemplateId = Number(templateId);
+    if (!selectedTemplateId) {
+      setTemplatePreviewQuestions([]);
+      return undefined;
+    }
+    let isCurrent = true;
+    setIsLoadingTemplatePreview(true);
+    api(`/templates/${selectedTemplateId}/questions`)
+      .then((data) => {
+        if (isCurrent) setTemplatePreviewQuestions(data.questions || []);
+      })
+      .catch(() => {
+        if (isCurrent) setTemplatePreviewQuestions([]);
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoadingTemplatePreview(false);
+      });
+    return () => { isCurrent = false; };
+  }, [templateId]);
 
   // A duplicate warning belongs to the previous selection. Remove it as soon
   // as the user changes the people, purpose, feedback type, or due date.
@@ -1167,6 +1190,14 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
             </select>
           </SelectShell>
         </Field>
+
+        {step === 1 ? <section className="rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3.5">
+          <p className="text-sm font-bold text-slate-900">Questions the feedback giver will answer</p>
+          <p className="mt-1 text-sm text-muted">Preview only — these questions are sent with this request.</p>
+          {isLoadingTemplatePreview ? <p className="mt-3 text-sm text-muted">Loading questions…</p> : templatePreviewQuestions.length ? <ol className="mt-3 grid gap-2">
+            {templatePreviewQuestions.map((question, index) => <li className="flex gap-2 text-sm text-slate-700" key={question.id || index}><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-blue-700">{index + 1}</span><span>{question.questionText}</span></li>)}
+          </ol> : <p className="mt-3 text-sm text-muted">No questions are available for this feedback type.</p>}
+        </section> : null}
 
         <Field className={step === 2 ? "" : "hidden"} label="Who will give feedback?">
           <SelectShell>
