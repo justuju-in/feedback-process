@@ -182,8 +182,11 @@ export default function Home() {
   async function createRequest(payload) {
     try {
       await api("/feedback-requests", { method: "POST", body: JSON.stringify(payload) });
+      // Close immediately after the server confirms creation. Refreshing the
+      // dashboard must not keep the request form open after a successful send.
       setIsCreateOpen(false);
-      await loadRequests(currentUserId);
+      setReplacementRequest(null);
+      void loadRequests(currentUserId);
       return { ok: true };
     } catch (createError) {
       return { ok: false, message: createError.message };
