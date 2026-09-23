@@ -247,16 +247,16 @@ export async function createFeedbackRequest({
      WHERE requester_id = ?
        AND giver_id = ?
        AND receiver_id = ?
-       AND template_id = ?
+       AND purpose <=> ?
        AND status IN ('requested', 'in_progress', 'overdue', 'submitted', 'acknowledged', 'follow_up_needed')
      LIMIT 1`,
-    [requesterId, giverId, receiverId, templateId],
+    [requesterId, giverId, receiverId, normalizedPurpose],
   );
 
   if (duplicateRequest) {
     throw new ServiceError(
       409,
-      "An open request already exists for this feedback type and these people. Change the feedback type or person, or complete/cancel the open request first. A different due date does not create a new request.",
+      "An open request already exists for this feedback purpose and these people. Choose a different purpose, or complete/cancel the open request first. A different date or feedback type does not create a new request.",
     );
   }
 

@@ -973,12 +973,12 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
       Number(request.requesterId) === Number(currentUserId)
       && Number(request.giverId) === Number(giverId)
       && Number(request.receiverId) === Number(receiverId)
-      && Number(request.templateId) === Number(templateId)
+      && String(request.purpose || "") === String(purpose || "")
       && ["requested", "in_progress", "overdue", "submitted", "acknowledged", "follow_up_needed"].includes(request.status)
     ));
     if (hasOpenDuplicate) {
       setNoticeTone("error");
-      setNotice("An open request for this feedback type and these people already exists. Change the feedback type or person, or complete/cancel the open request first. A different due date does not create a new request.");
+      setNotice("An open request for this feedback purpose and these people already exists. Choose a different purpose, or complete/cancel the open request first. A different date or feedback type does not create a new request.");
       return;
     }
     setIsSendingRequest(true);
@@ -1154,7 +1154,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
 
         <Field className={step === 2 ? "" : "hidden"} label="Due date (optional)">
           <input className={fieldClass} type="date" min={today} value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
-          <p className="text-sm font-normal text-muted">Changing the date does not allow a duplicate open request.</p>
+          <p className="text-sm font-normal text-muted">Changing the date does not allow a duplicate open request with the same feedback purpose.</p>
         </Field>
 
         {step === 2 ? <div className="flex items-center justify-between gap-3"><button className={secondaryButton} type="button" onClick={() => setStep(1)}>Back</button><button className={primaryButton} type="button" onClick={() => continueToStep(3)}>Continue</button></div> : null}
