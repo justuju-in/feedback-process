@@ -7,9 +7,9 @@ import {
 } from "../services/templateService.js";
 import { respondWithError } from "./respondWithError.js";
 
-export async function getTemplates(_req, res) {
+export async function getTemplates(req, res) {
   try {
-    const templates = await getAllTemplates();
+    const templates = await getAllTemplates({ userId: req.auth.user.id });
     return res.status(200).json({ templates });
   } catch (error) {
     return respondWithError(res, error);

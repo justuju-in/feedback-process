@@ -73,10 +73,10 @@ async function requireUser(pool, userId, label) {
   return user;
 }
 
-async function requireTemplate(pool, templateId) {
+async function requireTemplate(pool, templateId, requesterId) {
   const [[template]] = await pool.execute(
-    "SELECT id FROM feedback_templates WHERE id = ?",
-    [templateId],
+    "SELECT id FROM feedback_templates WHERE id = ? AND is_active = TRUE AND (created_by IS NULL OR created_by = ?)",
+    [templateId, requesterId],
   );
 
   if (!template) {
@@ -239,7 +239,7 @@ export async function createFeedbackRequest({
       throw new ServiceError(400, "The selected viewer must have a Mentor, Lead, or Manager role");
     }
   }
-  await requireTemplate(pool, templateId);
+  await requireTemplate(pool, templateId, requesterId);
 
   const [[duplicateRequest]] = await pool.execute(
     `SELECT id

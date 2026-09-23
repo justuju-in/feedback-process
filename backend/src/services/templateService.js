@@ -3,6 +3,44 @@ import { ServiceError } from "./serviceError.js";
 
 const moderatorRoles = new Set(["admin"]);
 
+const builtInTemplates = [
+  {
+    name: "Learning Feedback",
+    description: "Feedback about learning progress, understanding, and improvement areas",
+    questions: ["What did the person learn well?", "Where can the person improve?", "What should the person practise next?"],
+  },
+  {
+    name: "Project Completion Feedback",
+    description: "Feedback after completing a project or task",
+    questions: ["What went well in the project?", "What challenges came during the project?", "What can be improved in the next project?"],
+  },
+  {
+    name: "Written Feedback",
+    description: "Structured written feedback about work, behaviour, and next steps",
+    questions: ["What work or behaviour would you like to recognise?", "What could be improved?", "What is one practical next step?"],
+  },
+  {
+    name: "Peer Feedback",
+    description: "Feedback from a colleague about collaboration and contribution",
+    questions: ["How did the person collaborate with others?", "What strengths did you observe?", "What would improve working together next time?"],
+  },
+  {
+    name: "Growth Feedback",
+    description: "Feedback about professional growth, strengths, and development",
+    questions: ["What progress or growth have you observed?", "Which skill or area should the person focus on next?", "What support would help their growth?"],
+  },
+  {
+    name: "One-on-One Feedback",
+    description: "Feedback to support a focused one-on-one conversation",
+    questions: ["What would you like to discuss?", "What is going well?", "What support or next step would help?"],
+  },
+  {
+    name: "Group Feedback",
+    description: "Feedback about team or group collaboration and outcomes",
+    questions: ["What did the group do well?", "What challenge should the group address?", "What action should the group take next?"],
+  },
+];
+
 function canModerate(role) {
   return moderatorRoles.has(String(role || "").toLowerCase());
 }
@@ -19,19 +57,56 @@ function normalizeTemplateDetails({ name, description, questions }) {
   return { templateName, templateDescription, normalizedQuestions };
 }
 
-export async function getAllTemplates({ includeInactive = false } = {}) {
+export async function getAllTemplates({ includeInactive = false, userId = null } = {}) {
   const pool = getDatabasePool();
+  const visibilityFilter = userId ? " AND (template.created_by IS NULL OR template.created_by = ?)" : "";
   const [templates] = await pool.query(
     `SELECT template.id, template.name, template.description,
         template.created_by AS createdBy, template.is_active AS isActive,
         template.created_at AS createdAt, creator.name AS createdByName
      FROM feedback_templates AS template
      LEFT JOIN users AS creator ON creator.id = template.created_by
-     ${includeInactive ? "" : "WHERE template.is_active = TRUE"}
-     ORDER BY template.is_active DESC, template.id`,
+     ${includeInactive ? "WHERE 1 = 1" : "WHERE template.is_active = TRUE"}
+     ${visibilityFilter}
+     ORDER BY template.is_active DESC, template.created_by IS NOT NULL, template.id`,
+    userId ? [userId] : [],
   );
 
   return templates;
+}
+
+export async function ensureBuiltInTemplates() {
+  const pool = getDatabasePool();
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    for (const template of builtInTemplates) {
+      const [[existing]] = await connection.execute(
+        "SELECT id FROM feedback_templates WHERE name = ? LIMIT 1",
+        [template.name],
+      );
+      const templateId = existing?.id || (await connection.execute(
+        "INSERT INTO feedback_templates (name, description, created_by, is_active) VALUES (?, ?, NULL, TRUE)",
+        [template.name, template.description],
+      ))[0].insertId;
+
+      for (const [index, question] of template.questions.entries()) {
+        await connection.execute(
+          `INSERT INTO template_questions (template_id, question_text, question_order)
+           SELECT ?, ?, ? WHERE NOT EXISTS (
+             SELECT 1 FROM template_questions WHERE template_id = ? AND question_order = ?
+           )`,
+          [templateId, question, index + 1, templateId, index + 1],
+        );
+      }
+    }
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 function normalizeTemplateQuestions(questions) {

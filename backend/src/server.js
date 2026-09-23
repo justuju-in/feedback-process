@@ -13,6 +13,7 @@ import feedbackReportRouter from "./routes/feedbackReportRoutes.js";
 import feedbackAnalyticsRouter from "./routes/feedbackAnalyticsRoutes.js";
 import { startFeedbackReminderJob } from "./jobs/feedbackReminderJob.js";
 import { getDatabasePool } from "./db/connection.js";
+import { ensureBuiltInTemplates } from "./services/templateService.js";
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -129,6 +130,8 @@ async function startServer() {
   if (!templateOwnerColumn.count) {
     await getDatabasePool().execute("ALTER TABLE feedback_templates ADD COLUMN created_by INT NULL AFTER description");
   }
+
+  await ensureBuiltInTemplates();
 
   app.listen(port, () => {
     console.log(`Feedback Process API running at http://localhost:${port}`);
