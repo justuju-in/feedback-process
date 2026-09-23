@@ -106,7 +106,9 @@ export default function RegisterPage() {
         </p>
       </section>
 
-      <section className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-8 lg:px-12 xl:px-20">
+      <section className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-8 sm:px-8 lg:px-12 xl:px-20">
+        <div className="pointer-events-none absolute -right-28 top-10 h-80 w-80 rounded-full bg-indigo-200/45 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 left-8 h-72 w-72 rounded-full bg-sky-200/45 blur-3xl" />
         <div className="w-full max-w-xl">
           <Link className="mb-8 flex w-fit items-center gap-3 lg:hidden" href="/">
             <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white shadow-md">
@@ -115,14 +117,17 @@ export default function RegisterPage() {
             <span className="text-lg font-bold text-[#252d70]">Feedback</span>
           </Link>
 
-          <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-[0_24px_70px_rgba(37,45,112,0.12)] sm:p-9 xl:p-10">
+          <div className="auth-card relative xl:p-10">
             <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#4c57a7]">Get started</p>
             <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Create your account</h2>
             <p className="mt-3 text-base text-slate-600">Enter your details to join your feedback workspace.</p>
 
             <form className="mt-8 grid gap-5" onSubmit={handleSubmit}>
               <AuthField autoComplete="name" id="name" label="Full name" onChange={updateField} placeholder="Enter your full name" type="text" value={form.name} />
-              <AuthField autoComplete="email" id="email" label="Email address" onChange={updateField} placeholder="you@example.com" type="email" value={form.email} />
+              <div>
+                <AuthField autoComplete="email" id="email" label="Justuju work email" onChange={updateField} placeholder="name@justuju.in" type="email" value={form.email} />
+                <p className="mt-2 text-xs font-medium text-slate-500">Only <span className="font-semibold text-[#36429a]">@justuju.in</span> email addresses can create an account.</p>
+              </div>
               <div className="grid gap-5 sm:grid-cols-2">
                 <AuthField autoComplete="new-password" id="password" label="Password" onChange={updateField} placeholder="Minimum 8 characters" type="password" value={form.password} />
                 <AuthField autoComplete="new-password" id="confirmPassword" label="Confirm password" onChange={updateField} placeholder="Enter it again" type="password" value={form.confirmPassword} />
@@ -135,7 +140,7 @@ export default function RegisterPage() {
                 Use at least 8 characters. Your password will be securely protected.
               </p>
 
-              <button className="mt-1 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#252d70] px-5 text-base font-semibold text-white shadow-lg shadow-indigo-950/15 transition hover:bg-[#1e255e] focus:outline-none focus:ring-4 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:opacity-60" disabled={isSubmitting} type="submit">
+              <button className="btn btn-primary mt-1 min-h-12 w-full" disabled={isSubmitting} type="submit">
                 {isSubmitting ? "Creating account…" : "Create Account"}
                 <ArrowRight aria-hidden="true" size={18} />
               </button>

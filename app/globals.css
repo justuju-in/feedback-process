@@ -10,7 +10,11 @@
 
   body {
     margin: 0;
-    background: #f6f8ff;
+    min-width: 320px;
+    background:
+      radial-gradient(circle at 8% 0%, rgba(112, 142, 255, 0.12), transparent 30rem),
+      radial-gradient(circle at 95% 15%, rgba(80, 200, 170, 0.09), transparent 28rem),
+      #f6f8ff;
     font-size: 16px;
     font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -23,19 +27,24 @@
   textarea {
     font: inherit;
   }
+
+  ::selection {
+    background: #cfd7ff;
+    color: #17205a;
+  }
 }
 
 @layer components {
   .btn {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-base font-semibold shadow-sm transition duration-200 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:ring-offset-2;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-base font-semibold shadow-sm transition duration-200 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .btn-primary {
-    @apply bg-brand text-white hover:-translate-y-0.5 hover:bg-brandDark hover:shadow-md;
+    @apply border border-transparent bg-gradient-to-br from-brand to-brandDark text-white shadow-brand/20 hover:-translate-y-0.5 hover:shadow-lg;
   }
 
   .btn-secondary {
-    @apply border border-line bg-white text-ink hover:-translate-y-0.5 hover:bg-surface hover:shadow-sm;
+    @apply border border-line bg-white text-ink hover:-translate-y-0.5 hover:border-slate-300 hover:bg-surface hover:shadow-sm;
   }
 
   .btn-danger {
@@ -43,11 +52,11 @@
   }
 
   .field-control {
-    @apply min-h-11 rounded-xl border border-line bg-white px-3.5 py-2.5 text-base text-ink shadow-sm outline-none transition placeholder:text-slate-400 focus:border-brand focus:ring-4 focus:ring-brand/10;
+    @apply min-h-11 rounded-xl border border-line bg-white px-3.5 py-2.5 text-base text-ink shadow-sm outline-none transition placeholder:text-slate-400 focus:border-brand focus:ring-4 focus:ring-brand/10 focus:shadow-md;
   }
 
   .card {
-    @apply rounded-2xl border border-line bg-white shadow-sm;
+    @apply rounded-2xl border border-line bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)];
   }
 
   .panel-card {
@@ -59,7 +68,7 @@
   }
 
   .metric-card {
-    @apply rounded-2xl border border-line bg-white p-5 shadow-sm;
+    @apply rounded-2xl border border-line bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_35px_rgba(15,23,42,0.08)];
   }
 
   .empty-state {
@@ -84,5 +93,27 @@
 
   .status-active {
     @apply bg-emerald-100 text-emerald-800;
+  }
+
+  .auth-shell {
+    @apply relative isolate flex min-h-screen items-center justify-center overflow-hidden px-4 py-8 text-slate-950 sm:px-8;
+  }
+
+  .auth-shell::before,
+  .auth-shell::after {
+    content: "";
+    @apply pointer-events-none absolute -z-10 rounded-full blur-3xl;
+  }
+
+  .auth-shell::before {
+    @apply -left-24 top-0 h-80 w-80 bg-indigo-300/30;
+  }
+
+  .auth-shell::after {
+    @apply -bottom-32 -right-20 h-96 w-96 bg-sky-200/40;
+  }
+
+  .auth-card {
+    @apply rounded-3xl border border-white/80 bg-white/95 p-6 shadow-[0_24px_70px_rgba(37,45,112,0.14)] backdrop-blur sm:p-9;
   }
 }

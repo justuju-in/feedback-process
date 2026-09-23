@@ -18,5 +18,5 @@ function VerificationContent() {
       .then(async (response) => { const data = await response.json(); if (!response.ok) throw new Error(data.message); setSuccess(true); setMessage(data.message); })
       .catch((error) => setMessage(error.message || "We could not verify this email."));
   }, [token]);
-  return <main className="flex min-h-screen items-center justify-center bg-[#f5f7ff] p-6"><section className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-xl"><h1 className="text-2xl font-bold text-slate-950">Email verification</h1><p className={`mt-4 ${success ? "text-emerald-700" : "text-slate-600"}`}>{message}</p><Link className="mt-7 inline-block rounded-xl bg-[#252d70] px-5 py-3 font-semibold text-white" href="/login">Go to login</Link></section></main>;
+  return <main className="auth-shell"><section className="auth-card w-full max-w-md text-center"><div className="mx-auto flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-white shadow-md"><img src="/justuju-logo.png" alt="Justuju" className="h-full w-full object-cover" /></div><h1 className="mt-5 text-2xl font-bold text-slate-950">Email verification</h1><p className={`mt-4 ${success ? "text-emerald-700" : "text-slate-600"}`}>{message}</p><Link className="btn btn-primary mt-7" href="/login">Go to login</Link></section></main>;
 }

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
-import { Eye, EyeOff, LockKeyhole, MessageCircle } from "lucide-react";
+import { Eye, EyeOff, LockKeyhole } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
 
@@ -31,7 +31,7 @@ function ResetForm() {
     finally { setLoading(false); }
   }
 
-  return <section className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-[0_24px_70px_rgba(37,45,112,0.12)] sm:p-9">
+  return <section className="auth-card">
     <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#4c57a7]">Choose a new password</p>
     <h1 className="mt-3 text-3xl font-bold tracking-tight">Create new password</h1>
     <p className="mt-3 text-base text-slate-600">Use at least 8 characters, then log in with your new password.</p>
@@ -67,4 +67,4 @@ function PasswordField({ id, label, onChange, value }) {
   </div>;
 }
 
-export default function ResetPasswordPage() { return <main className="flex min-h-screen items-center justify-center bg-[#f5f7ff] px-4 py-8 text-slate-950"><div className="w-full max-w-md"><Link className="mx-auto mb-8 flex w-fit items-center gap-3" href="/login"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#252d70] text-white"><MessageCircle size={21} /></span><span><b className="block text-lg text-[#252d70]">Feedback Process</b></span></Link><Suspense fallback={<p className="text-center">Loading reset form…</p>}><ResetForm /></Suspense></div></main>; }
+export default function ResetPasswordPage() { return <main className="auth-shell"><div className="w-full max-w-md"><Link className="mx-auto mb-8 flex w-fit items-center gap-3" href="/login"><span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-white shadow-md"><img src="/justuju-logo.png" alt="Justuju" className="h-full w-full object-cover" /></span><span><b className="block text-lg text-[#252d70]">Feedback</b><span className="block text-xs text-slate-500">Feedback Process</span></span></Link><Suspense fallback={<p className="text-center">Loading reset form…</p>}><ResetForm /></Suspense></div></main>; }

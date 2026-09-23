@@ -59,7 +59,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f5f7ff] px-4 py-8 text-slate-950 sm:px-8">
+    <main className="auth-shell">
       <div className="w-full max-w-md">
         <Link className="mx-auto mb-8 flex w-fit items-center gap-3" href="/">
           <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white shadow-md">
@@ -71,7 +71,7 @@ export default function LoginPage() {
           </span>
         </Link>
 
-        <section className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-[0_24px_70px_rgba(37,45,112,0.12)] sm:p-9">
+        <section className="auth-card">
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#4c57a7]">
             Welcome back
           </p>
@@ -110,7 +110,7 @@ export default function LoginPage() {
             {error ? <p className="rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700" role="alert">{error}</p> : null}
 
             <button
-              className="mt-1 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#252d70] px-5 text-base font-semibold text-white shadow-lg shadow-indigo-950/15 transition hover:bg-[#1e255e] focus:outline-none focus:ring-4 focus:ring-indigo-200"
+              className="btn btn-primary mt-1 min-h-12 w-full"
               disabled={isSubmitting}
               type="submit"
             >

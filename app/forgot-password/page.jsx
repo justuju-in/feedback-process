@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ArrowLeft, Mail, MessageCircle } from "lucide-react";
+import { ArrowLeft, Mail } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
 
@@ -53,6 +53,6 @@ export default function ForgotPasswordPage() {
   </AuthPage>;
 }
 
-function AuthPage({ children }) { return <main className="flex min-h-screen items-center justify-center bg-[#f5f7ff] px-4 py-8 text-slate-950"><div className="w-full max-w-md"><Brand /><section className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-[0_24px_70px_rgba(37,45,112,0.12)] sm:p-9">{children}</section></div></main>; }
-function Brand() { return <Link className="mx-auto mb-8 flex w-fit items-center gap-3" href="/login"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#252d70] text-white"><MessageCircle size={21} /></span><span><b className="block text-lg text-[#252d70]">Feedback Process</b></span></Link>; }
+function AuthPage({ children }) { return <main className="auth-shell"><div className="w-full max-w-md"><Brand /><section className="auth-card">{children}</section></div></main>; }
+function Brand() { return <Link className="mx-auto mb-8 flex w-fit items-center gap-3" href="/login"><span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-white shadow-md"><img src="/justuju-logo.png" alt="Justuju" className="h-full w-full object-cover" /></span><span><b className="block text-lg text-[#252d70]">Feedback</b><span className="block text-xs text-slate-500">Feedback Process</span></span></Link>; }
 function Notice({ children, error=false }) { return <p className={`rounded-xl px-4 py-3 text-sm font-medium ${error ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-800"}`} role={error ? "alert" : "status"}>{children}</p>; }
