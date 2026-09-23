@@ -1,5 +1,6 @@
 import { getDatabasePool } from "../db/connection.js";
 import { sendFeedbackReportNotification } from "../integrations/mattermost.js";
+import { sendSafetyReportEmail } from "../integrations/email.js";
 import { ServiceError } from "./serviceError.js";
 import { writeFeedbackAuditEvent } from "./feedbackAuditService.js";
 
@@ -35,9 +36,12 @@ export async function createFeedbackReport({ requestId, reporterId, reason, deta
     const report = { id: result.insertId, requestId, reason, details: details || null, status: "open" };
     await writeFeedbackAuditEvent({ requestId, actorId: reporterId, eventType: "feedback_reported", details: reason });
     try {
-      await sendFeedbackReportNotification(report);
+      await Promise.all([
+        sendFeedbackReportNotification(report),
+        sendSafetyReportEmail(report),
+      ]);
     } catch (error) {
-      // The report is already safely stored. A temporary Mattermost problem
+      // The report is already safely stored. A temporary notification problem
       // must not prevent a person from reporting harmful feedback.
       console.error("SC Team notification failed:", error.message);
     }

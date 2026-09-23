@@ -74,3 +74,21 @@ export async function sendFeedbackEmail({ email, name, subject, message, actionU
     html: `<p>Hi ${name || "there"},</p><p>${safeMessage}</p>${linkMarkup}`,
   });
 }
+
+
+export async function sendSafetyReportEmail({ id, requestId, reason }) {
+  const recipient = process.env.SC_REPORT_EMAIL;
+  if (!recipient) {
+    return { sent: false, reason: "SC_REPORT_EMAIL is not configured" };
+  }
+
+  const configuration = getEmailConfiguration();
+  const transporter = createEmailTransporter(configuration);
+  await transporter.sendMail({
+    from: `Feedback Process <${configuration.from}>`,
+    to: recipient,
+    subject: `[Action required] Feedback safety report #${id}`,
+    text: `A confidential feedback safety report requires review.\n\nReport: #${id}\nFeedback request: #${requestId}\nCategory: ${reason}\n\nSign in to Feedback Process to review it. This alert intentionally does not include private feedback answers.`,
+  });
+  return { sent: true };
+}
