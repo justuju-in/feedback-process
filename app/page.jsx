@@ -1944,17 +1944,16 @@ function FeedbackConversation({ request, currentUserId, onDiscussion }) {
   const isGiver = Number(currentUserId) === Number(request.giverId);
   const canDiscuss = ["submitted", "acknowledged"].includes(request.status);
   const [message, setMessage] = useState("");
-  const [answerId, setAnswerId] = useState("");
-  const [discussionMode, setDiscussionMode] = useState("question");
   const [replyValues, setReplyValues] = useState({});
   const [notice, setNotice] = useState("");
   const discussions = request.discussions || [];
   const questions = discussions.filter((discussion) => !discussion.parentId);
   const messages = [...discussions].sort((first, second) => new Date(first.createdAt) - new Date(second.createdAt));
+  const hasCommented = discussions.some((discussion) => Number(discussion.authorId) === Number(currentUserId) && discussion.type === "comment");
 
   async function sendMessage() {
     if (message.trim().length < 3) return setNotice("Please write at least 3 characters.");
-    const saved = await onDiscussion(request.id, { type: discussionMode === "comment" ? "comment" : "clarification", message, answerId: answerId || null });
+    const saved = await onDiscussion(request.id, { type: "comment", message });
     if (saved) {
       setMessage("");
       setNotice("");
@@ -1981,8 +1980,8 @@ function FeedbackConversation({ request, currentUserId, onDiscussion }) {
 
   return (
     <section className="rounded-xl border border-sky-100 bg-sky-50/50 p-4">
-      <p className="font-semibold text-slate-900">Comments and questions</p>
-      <p className="mt-1 text-sm text-slate-600">{canDiscuss ? "You can leave a comment, or ask a question. Only questions need a reply before the request can close." : "Saved conversation from this completed feedback process."}</p>
+      <p className="font-semibold text-slate-900">Comment on this feedback</p>
+      <p className="mt-1 text-sm text-slate-600">{canDiscuss ? "You may add one comment in your own words. A reply is not required." : "Saved comments from this completed feedback process."}</p>
 
       {messages.length ? <div className="mt-4 space-y-3">
         {messages.map((discussion) => {
@@ -1998,15 +1997,11 @@ function FeedbackConversation({ request, currentUserId, onDiscussion }) {
         })}
       </div> : <p className="mt-4 rounded-lg border border-dashed border-sky-200 bg-white/70 px-4 py-3 text-sm text-slate-600">No questions yet.</p>}
 
-      {canDiscuss && isReceiver ? <div className="mt-4 grid gap-3 border-t border-sky-100 pt-4">
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Message type">
-          <button className={`rounded-lg px-3 py-2 text-sm font-semibold ${discussionMode === "question" ? "bg-blue-600 text-white" : "border border-slate-200 bg-white text-slate-700"}`} type="button" onClick={() => setDiscussionMode("question")}>Ask a question</button>
-          <button className={`rounded-lg px-3 py-2 text-sm font-semibold ${discussionMode === "comment" ? "bg-emerald-600 text-white" : "border border-slate-200 bg-white text-slate-700"}`} type="button" onClick={() => setDiscussionMode("comment")}>Add a comment</button>
-        </div>
-        <select className={fieldClass} value={answerId} onChange={(event) => setAnswerId(event.target.value)}><option value="">About the overall feedback</option>{(request.answers || []).map((answer) => <option key={answer.id} value={answer.id}>{answer.questionText}</option>)}</select>
-        <textarea className={`${fieldClass} min-h-24 resize-y`} value={message} maxLength={1000} placeholder={discussionMode === "comment" ? "Write a thank-you or acknowledgement comment" : "Ask a question about this feedback"} onChange={(event) => setMessage(event.target.value)} />
-        <button className={`${secondaryButton} justify-self-start`} type="button" onClick={() => void sendMessage()}>{discussionMode === "comment" ? "Send comment" : "Send question"}</button>
+      {canDiscuss && isReceiver && !hasCommented ? <div className="mt-4 grid gap-3 border-t border-sky-100 pt-4">
+        <textarea className={`${fieldClass} min-h-24 resize-y`} value={message} maxLength={1000} placeholder="Write your comment, for example: Thank you, this feedback was helpful." onChange={(event) => setMessage(event.target.value)} />
+        <button className={`${secondaryButton} justify-self-start`} type="button" onClick={() => void sendMessage()}>Add comment</button>
       </div> : null}
+      {canDiscuss && isReceiver && hasCommented ? <p className="mt-4 rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">Your one feedback comment has been saved.</p> : null}
 
       {canDiscuss && isGiver ? questions.filter((question) => question.status === "open").map((question) => <div className="mt-4 grid gap-2 border-t border-sky-100 pt-4" key={`reply-${question.id}`}>
         <p className="text-sm font-semibold text-slate-800">Reply to {question.authorName}’s question</p>
