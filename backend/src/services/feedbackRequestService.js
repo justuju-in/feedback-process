@@ -256,7 +256,7 @@ export async function createFeedbackRequest({
   if (duplicateRequest) {
     throw new ServiceError(
       409,
-      "An open feedback request already exists for this requester, giver, and template",
+      "An open request already exists for this feedback type and these people. Change the feedback type or person, or complete/cancel the open request first. A different due date does not create a new request.",
     );
   }
 

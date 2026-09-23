@@ -595,6 +595,7 @@ export default function Home() {
             currentUser={currentUser}
             users={users}
             templates={templates}
+            requests={requests}
             replacementRequest={replacementRequest}
             onCreate={createRequest}
             onCreateTemplate={createTemplate}
@@ -882,7 +883,7 @@ function RequestProgress({ step }) {
   );
 }
 
-function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, replacementRequest, onCreate, onCreateTemplate, onUpdateTemplate, onSetTemplateStatus, onClose }) {
+function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, requests, replacementRequest, onCreate, onCreateTemplate, onUpdateTemplate, onSetTemplateStatus, onClose }) {
   const possibleGivers = users.filter((user) => user.id !== currentUserId && user.isActive !== false);
   const possibleReceivers = users.filter((user) => user.isActive !== false);
   const [giverId, setGiverId] = useState("");
@@ -906,6 +907,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
   const [notice, setNotice] = useState(null);
   const [noticeTone, setNoticeTone] = useState("error");
   const [step, setStep] = useState(1);
+  const [isSendingRequest, setIsSendingRequest] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
@@ -967,17 +969,21 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
       setNotice("Choose at least one group member who can view this feedback.");
       return;
     }
-    const result = await onCreate({
-      giverId: Number(giverId),
-      receiverId: Number(receiverId),
-      templateId: Number(templateId),
-      message,
-      dueDate,
-      purpose,
-      visibility,
-      viewerIds,
-      isAnonymous,
-    });
+    const hasOpenDuplicate = requests.some((request) => (
+      Number(request.requesterId) === Number(currentUserId)
+      && Number(request.giverId) === Number(giverId)
+      && Number(request.receiverId) === Number(receiverId)
+      && Number(request.templateId) === Number(templateId)
+      && ["requested", "in_progress", "overdue", "submitted", "acknowledged", "follow_up_needed"].includes(request.status)
+    ));
+    if (hasOpenDuplicate) {
+      setNoticeTone("error");
+      setNotice("An open request for this feedback type and these people already exists. Change the feedback type or person, or complete/cancel the open request first. A different due date does not create a new request.");
+      return;
+    }
+    setIsSendingRequest(true);
+    const result = await onCreate({ giverId: Number(giverId), receiverId: Number(receiverId), templateId: Number(templateId), message, dueDate, purpose, visibility, viewerIds, isAnonymous });
+    setIsSendingRequest(false);
     if (result.ok) {
       onClose();
       return;
@@ -1148,6 +1154,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
 
         <Field className={step === 2 ? "" : "hidden"} label="Due date (optional)">
           <input className={fieldClass} type="date" min={today} value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
+          <p className="text-sm font-normal text-muted">Changing the date does not allow a duplicate open request.</p>
         </Field>
 
         {step === 2 ? <div className="flex items-center justify-between gap-3"><button className={secondaryButton} type="button" onClick={() => setStep(1)}>Back</button><button className={primaryButton} type="button" onClick={() => continueToStep(3)}>Continue</button></div> : null}
@@ -1394,9 +1401,9 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
         </details>
         </> : null}
 
-        <div className="flex items-center gap-3 pt-1"><button className={secondaryButton} type="button" onClick={() => setStep(2)}>Back</button><button className={`${primaryButton} flex-1 py-4 text-lg`} type="submit">
+        <div className="flex items-center gap-3 pt-1"><button className={secondaryButton} type="button" onClick={() => setStep(2)} disabled={isSendingRequest}>Back</button><button className={`${primaryButton} flex-1 py-4 text-lg disabled:cursor-not-allowed disabled:opacity-60`} type="submit" disabled={isSendingRequest}>
           <Send size={22} />
-          Send Request
+          {isSendingRequest ? "Sending…" : "Send Request"}
         </button></div>
         </div>
         {notice ? (
