@@ -32,6 +32,7 @@ function parsePositiveInteger(value) {
 export async function createFeedbackRequest(req, res) {
   const requesterId = req.auth.user.id;
   const giverId = parsePositiveInteger(req.body.giverId);
+  const receiverId = parsePositiveInteger(req.body.receiverId) || requesterId;
   const templateId = parsePositiveInteger(req.body.templateId);
   const { message, dueDate, purpose, visibility, viewerIds, isAnonymous } = req.body;
 
@@ -48,7 +49,7 @@ export async function createFeedbackRequest(req, res) {
     const feedbackRequest = await createFeedbackRequestInDatabase({
       requesterId,
       giverId,
-      receiverId: requesterId,
+      receiverId,
       templateId,
       message,
       dueDate,
@@ -70,7 +71,7 @@ export async function createFeedbackRequest(req, res) {
 export async function createFeedbackSchedule(req, res) {
   try {
     if (req.auth.user.role === "external") return res.status(403).json({ message: "External collaborators cannot create feedback schedules." });
-    req.body.receiverId = req.auth.user.id;
+    req.body.receiverId = parsePositiveInteger(req.body.receiverId) || req.auth.user.id;
     const schedule = await createFeedbackScheduleInDatabase(req.body, req.auth.user.id);
     return res.status(201).json({ message: "Recurring feedback schedule saved", schedule });
   } catch (error) {

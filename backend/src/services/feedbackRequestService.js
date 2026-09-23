@@ -110,7 +110,7 @@ async function recordNotification(pool, requestId, notificationKey) {
 }
 
 /**
- * Sends one reminder two days before and on the day a request is due, plus an
+ * Sends one reminder one day before and on the day a request is due, plus an
  * overdue alert. The database log makes this safe to call every hour.
  */
 export async function sendScheduledFeedbackReminders() {
@@ -118,7 +118,7 @@ export async function sendScheduledFeedbackReminders() {
   await markOverdueRequests(pool);
   const [requests] = await pool.execute(
     `${requestSelect}
-     WHERE (request.status IN ('requested', 'in_progress') AND request.due_date = DATE_ADD(CURRENT_DATE(), INTERVAL 2 DAY))
+     WHERE (request.status IN ('requested', 'in_progress') AND request.due_date = DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY))
         OR (request.status IN ('requested', 'in_progress') AND request.due_date = CURRENT_DATE())
         OR (request.status = 'overdue' AND request.due_date < CURRENT_DATE())`,
   );
@@ -139,13 +139,13 @@ export async function sendScheduledFeedbackReminders() {
       ? `${feedbackRequest.templateName} feedback for ${feedbackRequest.receiverName} is overdue.`
       : isDueToday
         ? `${feedbackRequest.templateName} feedback for ${feedbackRequest.receiverName} is due today.`
-        : `${feedbackRequest.templateName} feedback for ${feedbackRequest.receiverName} is due in 2 days.`;
+        : `${feedbackRequest.templateName} feedback for ${feedbackRequest.receiverName} is due tomorrow.`;
     let emailSent = false;
     try {
       await sendFeedbackEmail({
         email: feedbackRequest.giverEmail,
         name: feedbackRequest.giverName,
-        subject: isOverdue ? "Feedback request is overdue" : isDueToday ? "Feedback request due today" : "Feedback request due in 2 days",
+        subject: isOverdue ? "Feedback request is overdue" : isDueToday ? "Feedback request due today" : "Feedback request due tomorrow",
         message: reminderText,
         actionUrl: getPrimaryFrontendOrigin(),
       });
@@ -219,8 +219,6 @@ export async function createFeedbackRequest({
   viewerIds,
   isAnonymous,
 }) {
-  // A person requests feedback about themselves: requester is always receiver.
-  receiverId = requesterId;
   if (requesterId === giverId) {
     throw new ServiceError(400, "You cannot request feedback from yourself");
   }
@@ -230,7 +228,7 @@ export async function createFeedbackRequest({
   const normalizedPurpose = normalizePurpose(purpose);
   const normalizedVisibility = normalizeVisibility(visibility);
   const normalizedIsAnonymous = normalizeAnonymous(isAnonymous);
-  const normalizedViewerIds = normalizeViewerIds(viewerIds, requesterId, giverId, normalizedVisibility);
+  const normalizedViewerIds = normalizeViewerIds(viewerIds, requesterId, giverId, receiverId, normalizedVisibility);
   const requester = await requireUser(pool, requesterId, "Requester");
   if (requester.role === "external") throw new ServiceError(403, "External collaborators cannot create feedback requests");
   await requireUser(pool, giverId, "Feedback giver");
@@ -332,14 +330,14 @@ function normalizeVisibility(visibility) {
   return value;
 }
 
-function normalizeViewerIds(viewerIds, requesterId, giverId, visibility) {
+function normalizeViewerIds(viewerIds, requesterId, giverId, receiverId, visibility) {
   const ids = viewerIds === undefined ? [] : viewerIds;
   if (!Array.isArray(ids) || ids.some((id) => !Number.isInteger(Number(id)) || Number(id) <= 0)) {
     throw new ServiceError(400, "viewerIds must contain positive user IDs");
   }
   const uniqueIds = [...new Set(ids.map(Number))];
-  if (uniqueIds.some((id) => id === requesterId || id === giverId)) {
-    throw new ServiceError(400, "Requester and feedback giver already have access");
+  if (uniqueIds.some((id) => [requesterId, giverId, receiverId].includes(id))) {
+    throw new ServiceError(400, "Requester, feedback giver, and receiver already have access");
   }
   if (visibility === "private" && uniqueIds.length) {
     throw new ServiceError(400, "Private feedback cannot have extra viewers");
@@ -873,8 +871,8 @@ const lifecycleActions = {
     to: "in_progress",
   },
   decline: {
-    actorColumn: "giver_id",
-    actorLabel: "selected feedback giver",
+    actorColumn: "giver_or_receiver",
+    actorLabel: "selected feedback giver or receiver",
     from: ["requested", "in_progress", "overdue"],
     to: "declined",
   },
@@ -949,6 +947,7 @@ export async function performFeedbackRequestAction(
     }
 
     const permitted = rule.actorColumn === "giver_id" ? actorId === request.giverId
+      : rule.actorColumn === "giver_or_receiver" ? [request.giverId, request.receiverId].includes(actorId)
       : rule.actorColumn === "receiver_id" ? actorId === request.receiverId
       : rule.actorColumn === "requester_or_receiver" ? [request.requesterId, request.receiverId].includes(actorId)
       : actorId === request.requesterId;

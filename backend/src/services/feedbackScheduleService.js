@@ -58,6 +58,9 @@ function normalizeSchedule(payload, requesterId) {
   if (visibility === "private" && viewerIds.length) throw new ServiceError(400, "Private feedback cannot have extra viewers");
   if (visibility === "mentor_lead" && viewerIds.length !== 1) throw new ServiceError(400, "Select one mentor or lead viewer");
   if (visibility === "selected_group" && !viewerIds.length) throw new ServiceError(400, "Select at least one group viewer");
+  if (viewerIds.some((id) => [requesterId, giverId, receiverId].includes(id))) {
+    throw new ServiceError(400, "Requester, feedback giver, and receiver already have access");
+  }
 
   return { giverId, receiverId, templateId, dueInDays, frequency, scheduledTime, startDate, endDate, viewerIds, visibility, purpose: payload.purpose || null, message: typeof payload.message === "string" ? payload.message.trim().slice(0, 500) : null };
 }

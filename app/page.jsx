@@ -897,7 +897,9 @@ function RequestProgress({ step }) {
 
 function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, replacementRequest, onCreate, onCreateTemplate, onUpdateTemplate, onSetTemplateStatus, onClose }) {
   const possibleGivers = users.filter((user) => user.id !== currentUserId && user.isActive !== false);
+  const possibleReceivers = users.filter((user) => user.isActive !== false);
   const [giverId, setGiverId] = useState("");
+  const [receiverId, setReceiverId] = useState(String(currentUserId || ""));
   const [templateId, setTemplateId] = useState("");
   const [message, setMessage] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -930,14 +932,20 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
     }
   }, [currentUserId, giverId, possibleGivers]);
 
+  useEffect(() => {
+    if (!possibleReceivers.some((user) => user.id === Number(receiverId))) {
+      setReceiverId(String(currentUserId || possibleReceivers[0]?.id || ""));
+    }
+  }, [currentUserId, possibleReceivers, receiverId]);
+
   const possibleViewers = users.filter(
-    (user) => user.id !== currentUserId && user.id !== Number(giverId) && user.isActive !== false,
+    (user) => user.id !== currentUserId && user.id !== Number(giverId) && user.id !== Number(receiverId) && user.isActive !== false,
   );
   const mentorLeadViewers = possibleViewers.filter((user) => ["mentor", "lead", "manager"].includes(String(user.role || "").toLowerCase()));
 
   useEffect(() => {
     setViewerIds((currentIds) => currentIds.filter((id) => possibleViewers.some((user) => user.id === id)));
-  }, [giverId, currentUserId, users]);
+  }, [giverId, receiverId, currentUserId, users]);
 
   useEffect(() => {
     if (!templates.some((template) => template.id === Number(templateId))) {
@@ -948,6 +956,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
   useEffect(() => {
     if (!replacementRequest) return;
     setGiverId(String(replacementRequest.alternateGiverId));
+    setReceiverId(String(replacementRequest.receiverId));
     setTemplateId(String(replacementRequest.templateId));
     setPurpose(replacementRequest.rawPurpose || "growth");
     setDueDate("");
@@ -983,6 +992,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
     }
     const result = await onCreate({
       giverId: Number(giverId),
+      receiverId: Number(receiverId),
       templateId: Number(templateId),
       message,
       dueDate: recurring ? undefined : dueDate,
@@ -1014,6 +1024,11 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
     if (nextStep === 3 && !giverId) {
       setNoticeTone("error");
       setNotice("Choose the person who will give feedback to continue.");
+      return;
+    }
+    if (nextStep === 3 && !receiverId) {
+      setNoticeTone("error");
+      setNotice("Choose who will receive this feedback to continue.");
       return;
     }
     setStep(nextStep);
@@ -1144,7 +1159,19 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
               ))}
             </select>
           </SelectShell>
-          <p className="text-sm font-normal text-muted">This person will receive the form and share their feedback with you.</p>
+          <p className="text-sm font-normal text-muted">This person will receive the form and share their feedback.</p>
+        </Field>
+
+        <Field className={step === 2 ? "" : "hidden"} label="Who will receive feedback?">
+          <SelectShell>
+            <Avatar initials={initialsForName(possibleReceivers.find((user) => user.id === Number(receiverId))?.name)} small />
+            <select className="w-full bg-transparent outline-none" value={receiverId} onChange={(event) => setReceiverId(event.target.value)}>
+              {possibleReceivers.map((user) => (
+                <option key={user.id} value={user.id}>{user.name}{user.id === currentUserId ? " (me)" : ""}</option>
+              ))}
+            </select>
+          </SelectShell>
+          <p className="text-sm font-normal text-muted">Choose yourself for personal feedback, or another Justuju member when you are coordinating feedback for them.</p>
         </Field>
 
         {!recurring ? <Field className={step === 2 ? "" : "hidden"} label="Due date (optional)">
@@ -1460,6 +1487,7 @@ function Field({ label, children, className = "" }) {
 
 function DeclineFeedbackModal({ request, users, currentUserId, onClose, onSubmit }) {
   const [reason, setReason] = useState("");
+  const [reasonType, setReasonType] = useState("unable_to_participate");
   const [alternateGiverId, setAlternateGiverId] = useState("");
   const [notice, setNotice] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1473,7 +1501,8 @@ function DeclineFeedbackModal({ request, users, currentUserId, onClose, onSubmit
 
     setIsSubmitting(true);
     setNotice("");
-    const wasDeclined = await onSubmit(reason, alternateGiverId ? Number(alternateGiverId) : null);
+    const labels = { unable_to_participate: "Unable to participate", conflict_of_interest: "Conflict of interest", request_another_reviewer: "Request another reviewer", other: "Other" };
+    const wasDeclined = await onSubmit(`${labels[reasonType]}: ${reason}`, alternateGiverId ? Number(alternateGiverId) : null);
     if (!wasDeclined) setIsSubmitting(false);
   }
 
@@ -1481,9 +1510,17 @@ function DeclineFeedbackModal({ request, users, currentUserId, onClose, onSubmit
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
       <section className="w-full max-w-lg rounded-3xl border border-white/30 bg-white p-6 shadow-[0_28px_90px_rgba(15,23,42,0.35)] sm:p-8">
         <p className="text-sm font-bold uppercase tracking-[0.14em] text-red-600">Decline feedback request</p>
-        <h2 className="mt-2 text-2xl font-extrabold text-slate-950">Tell {request.requesterName} why</h2>
+        <h2 className="mt-2 text-2xl font-extrabold text-slate-950">Explain why you cannot take part</h2>
         <p className="mt-2 text-sm leading-6 text-muted">Your reason will be visible to the requester. You can still view this request later.</p>
         <form className="mt-6 grid gap-4" onSubmit={submit}>
+          <Field label="Reason type">
+            <select className={fieldClass} value={reasonType} onChange={(event) => setReasonType(event.target.value)}>
+              <option value="unable_to_participate">Unable to participate</option>
+              <option value="conflict_of_interest">Conflict of interest</option>
+              <option value="request_another_reviewer">Request another reviewer</option>
+              <option value="other">Other</option>
+            </select>
+          </Field>
           <Field label="Reason for declining">
             <textarea
               className={`${fieldClass} min-h-32 resize-y leading-7`}
@@ -2152,6 +2189,15 @@ function RequestActions({ row, currentUserId, onView, onAction, onEditDueDate })
       <div className="flex gap-2">
         <button className={buttonClass} type="button" onClick={onEditDueDate}>Edit due date</button>
         <button className={destructiveButtonClass} type="button" onClick={() => onAction("cancel")}>Cancel</button>
+      </div>
+    );
+  }
+
+  if (isReceiver && ["requested", "in_progress", "overdue"].includes(row.status)) {
+    return (
+      <div className="flex gap-2">
+        <button className={buttonClass} type="button" onClick={onView}>View</button>
+        <button className={destructiveButtonClass} type="button" onClick={() => onAction("decline")}>Decline</button>
       </div>
     );
   }
