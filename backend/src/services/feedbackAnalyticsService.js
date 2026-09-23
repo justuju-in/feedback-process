@@ -1,13 +1,13 @@
 import { getDatabasePool } from "../db/connection.js";
 import { ServiceError } from "./serviceError.js";
 
-const reviewerRoles = new Set(["sc", "hr", "admin"]);
+const reviewerRoles = new Set(["admin"]);
 
 export async function getFeedbackAnalytics(actorId) {
   const pool = getDatabasePool();
   const [[actor]] = await pool.execute("SELECT role FROM users WHERE id = ?", [actorId]);
   if (!actor || !reviewerRoles.has(String(actor.role).toLowerCase())) {
-    throw new ServiceError(403, "Only SC Team, HR, or an admin can view team analytics");
+    throw new ServiceError(403, "Only an admin can view team analytics");
   }
 
   const [[summary]] = await pool.execute(

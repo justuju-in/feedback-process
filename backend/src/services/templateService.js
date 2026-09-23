@@ -1,7 +1,7 @@
 import { getDatabasePool } from "../db/connection.js";
 import { ServiceError } from "./serviceError.js";
 
-const moderatorRoles = new Set(["admin", "hr", "sc"]);
+const moderatorRoles = new Set(["admin"]);
 
 function canModerate(role) {
   return moderatorRoles.has(String(role || "").toLowerCase());

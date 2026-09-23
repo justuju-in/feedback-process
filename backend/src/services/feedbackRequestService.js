@@ -940,7 +940,7 @@ export async function performFeedbackRequestAction(
 
     if (["hide", "remove", "reopen"].includes(action)) {
       const [[actor]] = await connection.execute("SELECT role FROM users WHERE id = ?", [actorId]);
-      if (!actor || !["admin", "hr", "sc"].includes(String(actor.role).toLowerCase())) throw new ServiceError(403, "Only SC, HR, or admin can moderate feedback records");
+      if (!actor || String(actor.role).toLowerCase() !== "admin") throw new ServiceError(403, "Only an admin can moderate feedback records");
       const [[record]] = await connection.execute("SELECT id, status, removed_at AS removedAt FROM feedback_requests WHERE id = ? FOR UPDATE", [requestId]);
       if (!record) throw new ServiceError(404, "Feedback request not found");
       if (action === "hide") await connection.execute("UPDATE feedback_requests SET hidden_at = NOW(), hidden_by = ?, hidden_reason = ? WHERE id = ?", [actorId, moderationReason, requestId]);

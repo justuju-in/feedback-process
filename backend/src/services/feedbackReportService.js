@@ -5,7 +5,7 @@ import { ServiceError } from "./serviceError.js";
 import { writeFeedbackAuditEvent } from "./feedbackAuditService.js";
 
 // Safety reports are a confidential SC Team workflow, separate from ordinary
-// feedback administration and HR access.
+// feedback administration.
 const reviewRoles = new Set(["sc"]);
 
 async function requireReportAccess(pool, requestId, userId) {

@@ -28,7 +28,7 @@ export async function createTemplate(req, res) {
 export async function getTemplatesForManagement(req, res) {
   try {
     const templates = await getAllTemplates({ includeInactive: true });
-    const isModerator = ["admin", "hr", "sc"].includes(String(req.auth.user.role).toLowerCase());
+    const isModerator = String(req.auth.user.role).toLowerCase() === "admin";
     return res.status(200).json({ templates: isModerator ? templates : templates.filter((template) => template.createdBy === req.auth.user.id) });
   } catch (error) { return respondWithError(res, error); }
 }

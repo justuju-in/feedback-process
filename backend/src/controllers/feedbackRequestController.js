@@ -180,7 +180,7 @@ export async function getFeedbackRequestById(req, res) {
       await getFeedbackRequestByIdFromDatabase(requestId);
 
     const hasViewerAccess = feedbackRequest.viewers.some((viewer) => viewer.userId === req.auth.user.id);
-    const isModerator = ["admin", "hr", "sc"].includes(String(req.auth.user.role).toLowerCase());
+    const isModerator = String(req.auth.user.role).toLowerCase() === "admin";
     if (feedbackRequest.requesterId !== req.auth.user.id && feedbackRequest.giverId !== req.auth.user.id && feedbackRequest.receiverId !== req.auth.user.id && !hasViewerAccess && !isModerator) {
       return res.status(403).json({ message: "You do not have access to this feedback request" });
     }

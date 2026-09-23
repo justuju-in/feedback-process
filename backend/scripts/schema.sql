@@ -436,7 +436,7 @@ CREATE TABLE IF NOT EXISTS user_notifications (
 );
 
 -- A private safety record. The feedback itself remains unchanged while an
--- admin/HR reviewer investigates the report.
+-- SC Team reviewer investigates the confidential report.
 CREATE TABLE IF NOT EXISTS feedback_reports (
   id INT AUTO_INCREMENT PRIMARY KEY,
   request_id INT NOT NULL,

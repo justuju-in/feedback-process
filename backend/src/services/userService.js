@@ -18,7 +18,7 @@ export async function getAllUsers() {
 const adminRoles = new Set(["admin"]);
 // Feedback Process is an internal Justuju workspace. External collaborators
 // are intentionally not an assignable role.
-const assignableRoles = new Set(["member", "mentor", "lead", "manager", "sc", "hr", "admin"]);
+const assignableRoles = new Set(["member", "mentor", "lead", "manager", "sc", "admin"]);
 const openStatuses = ["requested", "in_progress", "overdue", "submitted", "acknowledged", "follow_up_needed"];
 
 /**
@@ -36,7 +36,7 @@ export async function setUserActive({ userId, actorId, isActive }) {
     await connection.beginTransaction();
     const [[actor]] = await connection.execute("SELECT role FROM users WHERE id = ?", [actorId]);
     if (!actor || !adminRoles.has(String(actor.role).toLowerCase())) {
-      throw new ServiceError(403, "Only SC Team, HR, or an admin can change account status");
+      throw new ServiceError(403, "Only an admin can change account status");
     }
     if (Number(userId) === Number(actorId) && !isActive) {
       throw new ServiceError(400, "You cannot deactivate your own account");
@@ -114,7 +114,7 @@ export async function setUserRole({ userId, actorId, role }) {
   const pool = getDatabasePool();
   const [[actor]] = await pool.execute("SELECT role FROM users WHERE id = ?", [actorId]);
   if (!actor || !adminRoles.has(String(actor.role).toLowerCase())) {
-    throw new ServiceError(403, "Only SC Team, HR, or an admin can change roles");
+    throw new ServiceError(403, "Only an admin can change roles");
   }
   if (Number(userId) === Number(actorId) && !adminRoles.has(normalizedRole)) {
     throw new ServiceError(400, "You cannot remove your own reviewer access");

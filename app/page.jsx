@@ -74,7 +74,7 @@ export default function Home() {
   const currentUser = users.find((user) => user.id === currentUserId);
   const currentUserRole = String(currentUser?.role || "").toLowerCase();
   const isSafetyReviewer = currentUserRole === "sc";
-  const canViewAnalytics = ["admin", "hr"].includes(currentUserRole);
+  const canViewAnalytics = currentUserRole === "admin";
   const canManagePeople = currentUserRole === "admin";
   const selectedRequestId = selectedRequest?.id;
   const pendingForMe = requests.filter(
@@ -793,7 +793,7 @@ function PeopleManagement({ users, currentUserId, onUpdateStatus, onUpdateRole }
       <div className="divide-y divide-line">
         {users.map((user) => <article className="flex flex-wrap items-center justify-between gap-4 px-6 py-4" key={user.id}>
           <div><p className="font-semibold text-slate-900">{user.name}{user.id === currentUserId ? " (you)" : ""}</p><p className="mt-1 text-sm text-muted">{user.email} · {user.role || "member"}</p></div>
-          <div className="flex flex-wrap items-center gap-3"><select className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700" value={user.role || "member"} onChange={(event) => onUpdateRole(user, event.target.value)} aria-label={`Role for ${user.name}`}><option value="member">Member</option><option value="mentor">Mentor</option><option value="lead">Lead</option><option value="manager">Manager</option><option value="sc">SC Team</option><option value="hr">HR</option><option value="admin">Admin</option></select><span className={`rounded-full px-3 py-1 text-xs font-bold ${user.isActive ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{user.isActive ? "Active" : "Deactivated"}</span>{user.id !== currentUserId ? <button className={user.isActive ? "rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50" : secondaryButton} type="button" onClick={() => onUpdateStatus(user, !user.isActive)}>{user.isActive ? "Deactivate" : "Reactivate"}</button> : null}</div>
+          <div className="flex flex-wrap items-center gap-3"><select className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700" value={user.role || "member"} onChange={(event) => onUpdateRole(user, event.target.value)} aria-label={`Role for ${user.name}`}><option value="member">Member</option><option value="mentor">Mentor</option><option value="lead">Lead</option><option value="manager">Manager</option><option value="sc">SC Team</option><option value="admin">Admin</option></select><span className={`rounded-full px-3 py-1 text-xs font-bold ${user.isActive ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{user.isActive ? "Active" : "Deactivated"}</span>{user.id !== currentUserId ? <button className={user.isActive ? "rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50" : secondaryButton} type="button" onClick={() => onUpdateStatus(user, !user.isActive)}>{user.isActive ? "Deactivate" : "Reactivate"}</button> : null}</div>
         </article>)}
       </div>
     </section>
@@ -1122,7 +1122,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
     setNotice(`${template.name} is no longer available for new requests.`);
   }
 
-  const canModerateTemplates = ["admin", "hr", "sc"].includes(String(currentUser?.role || "").toLowerCase());
+  const canModerateTemplates = String(currentUser?.role || "").toLowerCase() === "admin";
   const manageableTemplates = templates.filter((template) => canModerateTemplates || template.createdBy === currentUserId);
 
   return (
@@ -1681,7 +1681,7 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
   const [attachmentLabel, setAttachmentLabel] = useState("");
   const [attachmentUrl, setAttachmentUrl] = useState("");
   const [attachmentNotice, setAttachmentNotice] = useState("");
-  const canModerate = ["admin", "hr", "sc"].includes(String(currentUserRole).toLowerCase());
+  const canModerate = String(currentUserRole).toLowerCase() === "admin";
 
   async function submit(event) {
     event.preventDefault();
@@ -1900,7 +1900,7 @@ function ModerateFeedbackModal({ request, onClose, onModerate }) {
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
       <form className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl" onSubmit={submit}>
         <p className="text-lg font-bold text-slate-950">Record controls</p>
-        <p className="mt-2 text-sm text-slate-600">SC, HR, and admins can moderate this record. Every action and reason is kept in the audit trail.</p>
+        <p className="mt-2 text-sm text-slate-600">Only an admin can moderate this record. Every action and reason is kept in the audit trail.</p>
         <label className="mt-5 grid gap-2 text-sm font-semibold text-slate-800">Action
           <select className={fieldClass} value={action} onChange={(event) => setAction(event.target.value)}>
             {availableActions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
