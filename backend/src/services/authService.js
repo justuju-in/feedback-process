@@ -31,6 +31,10 @@ function validateRegistration({ name, email, password }) {
     throw new ServiceError(400, "email must be valid");
   }
 
+  if (!email.endsWith("@justuju.in")) {
+    throw new ServiceError(400, "Please use your @justuju.in email address to register.");
+  }
+
   if (typeof password !== "string" || password.length < 8) {
     throw new ServiceError(400, "password must contain at least 8 characters");
   }
