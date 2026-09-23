@@ -645,13 +645,14 @@ export async function createFeedbackDiscussion({ requestId, actorId, type, messa
 
     if (actorId === request.receiverId) {
       if (parentId) throw new ServiceError(400, "Only the feedback giver can reply to a clarification");
-      if (!["clarification", "disagreement", "support"].includes(type)) {
-        throw new ServiceError(400, "type must be clarification, disagreement, or support");
+      if (!["clarification", "disagreement", "support", "comment"].includes(type)) {
+        throw new ServiceError(400, "type must be clarification, disagreement, support, or comment");
       }
+      const isComment = type === "comment";
       await connection.execute(
         `INSERT INTO feedback_discussions (request_id, answer_id, author_id, type, message, status)
-         VALUES (?, ?, ?, ?, ?, 'open')`,
-        [requestId, answerId, actorId, type, normalizedMessage],
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [requestId, answerId, actorId, type, normalizedMessage, isComment ? "resolved" : "open"],
       );
     } else if (actorId === request.giverId) {
       if (type !== "response" || !parentId) {
@@ -689,14 +690,17 @@ export async function createFeedbackDiscussion({ requestId, actorId, type, messa
 
   const feedbackRequest = await getFeedbackRequestById(requestId);
   const isReply = actorId === feedbackRequest.giverId;
+  const isComment = type === "comment";
   await notifyUser({
     userId: isReply ? feedbackRequest.receiverId : feedbackRequest.giverId,
     requestId: feedbackRequest.id,
-    type: isReply ? "feedback_reply" : "feedback_question",
-    title: isReply ? "Reply to your feedback question" : "New question about feedback",
+    type: isReply ? "feedback_reply" : isComment ? "feedback_comment" : "feedback_question",
+    title: isReply ? "Reply to your feedback question" : isComment ? "New comment about feedback" : "New question about feedback",
     message: isReply
       ? `${feedbackRequest.giverName} replied to your question.`
-      : `${feedbackRequest.receiverName} asked a question about the feedback.`,
+      : isComment
+        ? `${feedbackRequest.receiverName} left a comment about the feedback.`
+        : `${feedbackRequest.receiverName} asked a question about the feedback.`,
   });
   return feedbackRequest;
 }
