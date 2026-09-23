@@ -13,7 +13,9 @@ export async function getAllUsers() {
   return users;
 }
 
-const adminRoles = new Set(["admin", "hr", "sc"]);
+// Account access and role changes are administrative actions. SC Team members
+// review confidential reports but must not be able to browse or change users.
+const adminRoles = new Set(["admin"]);
 // Feedback Process is an internal Justuju workspace. External collaborators
 // are intentionally not an assignable role.
 const assignableRoles = new Set(["member", "mentor", "lead", "manager", "sc", "hr", "admin"]);

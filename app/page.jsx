@@ -72,8 +72,10 @@ export default function Home() {
   const latestRequestLoad = useRef(0);
 
   const currentUser = users.find((user) => user.id === currentUserId);
-  const isSCReviewer = ["sc", "admin", "hr"].includes(String(currentUser?.role || "").toLowerCase());
-  const isSafetyReviewer = String(currentUser?.role || "").toLowerCase() === "sc";
+  const currentUserRole = String(currentUser?.role || "").toLowerCase();
+  const isSafetyReviewer = currentUserRole === "sc";
+  const canViewAnalytics = ["admin", "hr"].includes(currentUserRole);
+  const canManagePeople = currentUserRole === "admin";
   const selectedRequestId = selectedRequest?.id;
   const pendingForMe = requests.filter(
     (request) => request.giverId === currentUserId && ["requested", "in_progress", "overdue"].includes(request.status),
@@ -434,10 +436,10 @@ export default function Home() {
     <div className="flex min-h-screen flex-col bg-gradient-to-br from-[#f6f8ff] via-[#fbfcfe] to-[#eef7ff] text-ink">
       <AppHeader currentUser={currentUser} onLogout={handleLogout} isLoggingOut={isLoggingOut} notifications={notifications} onNotificationRead={markNotificationRead} onReadAll={markAllNotificationsRead} onOpenRequest={(requestId) => void openRequest(requestId)} />
 
-      <MobileNavigation activePage={activePage} showSCReview={isSafetyReviewer} showManagement={isSCReviewer} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
+      <MobileNavigation activePage={activePage} showSCReview={isSafetyReviewer} showAnalytics={canViewAnalytics} showPeople={canManagePeople} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
 
       <div className={`grid flex-1 ${isCreateOpen ? "xl:grid-cols-[260px_1fr_420px]" : "xl:grid-cols-[260px_1fr]"}`}>
-        <Sidebar activePage={activePage} showSCReview={isSafetyReviewer} showManagement={isSCReviewer} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
+        <Sidebar activePage={activePage} showSCReview={isSafetyReviewer} showAnalytics={canViewAnalytics} showPeople={canManagePeople} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
 
         <main className="border-x border-line/70 bg-white/55 px-5 py-7 backdrop-blur-sm sm:px-7 sm:py-8 lg:px-9 xl:px-10">
           <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -485,8 +487,8 @@ export default function Home() {
           </> : null}
 
           {activePage === "reports" && isSafetyReviewer ? <SCReportReview reports={reports} onReview={(reportId, status) => void reviewReport(reportId, status)} onOpenRequest={(requestId) => void openRequest(requestId)} /> : null}
-          {activePage === "people" && isSCReviewer ? <PeopleManagement users={users} currentUserId={currentUserId} onUpdateStatus={(user, isActive) => void updateUserStatus(user, isActive)} onUpdateRole={(user, role) => void updateUserRole(user, role)} /> : null}
-          {activePage === "analytics" && isSCReviewer ? <AnalyticsDashboard analytics={analytics} /> : null}
+          {activePage === "people" && canManagePeople ? <PeopleManagement users={users} currentUserId={currentUserId} onUpdateStatus={(user, isActive) => void updateUserStatus(user, isActive)} onUpdateRole={(user, role) => void updateUserRole(user, role)} /> : null}
+          {activePage === "analytics" && canViewAnalytics ? <AnalyticsDashboard analytics={analytics} /> : null}
 
           {["requests", "history"].includes(activePage) ? <section className="mt-7 overflow-hidden rounded-2xl border border-line/80 bg-white shadow-[0_12px_36px_rgba(15,23,42,0.07)]">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-6 py-5">
@@ -729,13 +731,14 @@ function AppHeader({ currentUser, onLogout, isLoggingOut, notifications, onNotif
   );
 }
 
-function MobileNavigation({ activePage, showSCReview, showManagement, onSelect }) {
+function MobileNavigation({ activePage, showSCReview, showAnalytics, showPeople, onSelect }) {
   const items = [
     { page: "dashboard", label: "Dashboard", icon: <HomeIcon size={17} /> },
     { page: "requests", label: "Requests", icon: <Inbox size={17} /> },
     { page: "history", label: "History", icon: <HistoryIcon size={17} /> },
     ...(showSCReview ? [{ page: "reports", label: "SC Review", icon: <Inbox size={17} /> }] : []),
-    ...(showManagement ? [{ page: "analytics", label: "Analytics", icon: <BarChart3 size={17} /> }, { page: "people", label: "People", icon: <UsersRound size={17} /> }] : []),
+    ...(showAnalytics ? [{ page: "analytics", label: "Analytics", icon: <BarChart3 size={17} /> }] : []),
+    ...(showPeople ? [{ page: "people", label: "People", icon: <UsersRound size={17} /> }] : []),
   ];
 
   return (
@@ -767,7 +770,7 @@ function AppFooter() {
   );
 }
 
-function Sidebar({ activePage, showSCReview, showManagement, onSelect }) {
+function Sidebar({ activePage, showSCReview, showAnalytics, showPeople, onSelect }) {
   return (
     <aside className="hidden border-r border-indigo-400/25 bg-[#252d70] px-4 py-8 text-slate-200 xl:flex xl:flex-col">
       <p className="mb-3 px-3 text-xs font-bold uppercase tracking-[0.14em] text-indigo-200/70">Workspace</p>
@@ -776,8 +779,8 @@ function Sidebar({ activePage, showSCReview, showManagement, onSelect }) {
         <SidebarItem active={activePage === "requests"} icon={<Inbox size={22} />} label="Feedback Requests" onClick={() => onSelect("requests")} />
         <SidebarItem active={activePage === "history"} icon={<HistoryIcon size={22} />} label="Feedback History" onClick={() => onSelect("history")} />
         {showSCReview ? <SidebarItem active={activePage === "reports"} icon={<Inbox size={22} />} label="SC Team Review" onClick={() => onSelect("reports")} /> : null}
-        {showManagement ? <SidebarItem active={activePage === "analytics"} icon={<BarChart3 size={22} />} label="Team analytics" onClick={() => onSelect("analytics")} /> : null}
-        {showManagement ? <SidebarItem active={activePage === "people"} icon={<UsersRound size={22} />} label="People" onClick={() => onSelect("people")} /> : null}
+        {showAnalytics ? <SidebarItem active={activePage === "analytics"} icon={<BarChart3 size={22} />} label="Team analytics" onClick={() => onSelect("analytics")} /> : null}
+        {showPeople ? <SidebarItem active={activePage === "people"} icon={<UsersRound size={22} />} label="People" onClick={() => onSelect("people")} /> : null}
       </nav>
     </aside>
   );
