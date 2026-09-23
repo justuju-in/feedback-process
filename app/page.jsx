@@ -1029,6 +1029,20 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
     setStep(nextStep);
   }
 
+  function selectFeedbackType(nextTemplateId) {
+    setTemplateId(nextTemplateId);
+    // A built-in type and the custom-template editor are separate choices.
+    // Close any unfinished custom form when the user switches feedback type so
+    // its draft questions are never mistaken for the selected template.
+    setIsCustomTemplateOpen(false);
+    setEditingTemplateId(null);
+    setCustomTemplateName("");
+    setCustomTemplateDescription("");
+    setCustomQuestions(["", "", ""]);
+    setSavedTemplateName("");
+    setNotice(null);
+  }
+
   function updateCustomQuestion(index, value) {
     setCustomQuestions((questions) => questions.map((question, questionIndex) => (
       questionIndex === index ? value : question
@@ -1144,7 +1158,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
       <form className="mt-6 grid gap-5" onSubmit={submit}>
         <Field className={step === 1 ? "" : "hidden"} label="Feedback type">
           <SelectShell>
-            <select className="w-full bg-transparent outline-none" value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
+            <select className="w-full bg-transparent outline-none" value={templateId} onChange={(event) => selectFeedbackType(event.target.value)}>
               {templates.map((template) => (
                 <option key={template.id} value={template.id}>
                   {template.name}
