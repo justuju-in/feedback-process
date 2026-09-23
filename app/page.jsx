@@ -53,7 +53,6 @@ export default function Home() {
   const [users, setUsers] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [requests, setRequests] = useState([]);
-  const [schedules, setSchedules] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [reports, setReports] = useState([]);
   const [analytics, setAnalytics] = useState(null);
@@ -126,12 +125,11 @@ export default function Home() {
     latestRequestLoad.current = loadId;
 
     try {
-      const [received, receivedFeedback, sent, shared, scheduleData, notificationData] = await Promise.all([
+      const [received, receivedFeedback, sent, shared, notificationData] = await Promise.all([
         api(`/feedback-requests/giver/${userId}`),
         api(`/feedback-requests/receiver/${userId}`),
         api(`/feedback-requests/requester/${userId}`),
         api(`/feedback-requests/visible/${userId}`),
-        api("/feedback-requests/schedules"),
         api("/notifications"),
       ]);
 
@@ -147,7 +145,6 @@ export default function Home() {
         return dateDifference || second.id - first.id;
       });
       setRequests(newestFirst);
-      setSchedules(scheduleData.schedules);
       setNotifications(notificationData.notifications);
       setError("");
     } catch (loadError) {
@@ -184,26 +181,12 @@ export default function Home() {
 
   async function createRequest(payload) {
     try {
-      const { recurring, ...requestPayload } = payload;
-      if (recurring) {
-        await api("/feedback-requests/schedules", { method: "POST", body: JSON.stringify(requestPayload) });
-      } else {
-        await api("/feedback-requests", { method: "POST", body: JSON.stringify(requestPayload) });
-      }
+      await api("/feedback-requests", { method: "POST", body: JSON.stringify(payload) });
       setIsCreateOpen(false);
       await loadRequests(currentUserId);
-      return { ok: true, recurring };
+      return { ok: true };
     } catch (createError) {
       return { ok: false, message: createError.message };
-    }
-  }
-
-  async function setScheduleStatus(scheduleId, isActive) {
-    try {
-      await api(`/feedback-requests/schedules/${scheduleId}`, { method: "PATCH", body: JSON.stringify({ isActive }) });
-      await loadRequests(currentUserId);
-    } catch (scheduleError) {
-      setError(scheduleError.message);
     }
   }
 
@@ -483,7 +466,6 @@ export default function Home() {
             <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><p className="text-sm font-bold uppercase tracking-wide text-amber-600">Upcoming due dates</p><h2 className="mt-1 text-xl font-bold text-slate-950">Keep on track</h2><div className="mt-4 grid gap-2">{upcomingRequests.length ? upcomingRequests.map((request) => <div key={request.id} className="flex justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm"><span className="font-semibold">{request.type}</span><span className="font-bold text-amber-700">{request.dueDate}</span></div>) : <p className="text-sm text-muted">No upcoming due dates.</p>}</div></article>
             <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><p className="text-sm font-bold uppercase tracking-wide text-violet-600">Recent activity</p><h2 className="mt-1 text-xl font-bold text-slate-950">Latest updates</h2><div className="mt-4 grid gap-2">{tableRows.slice(0, 3).map((request) => <button key={request.id} type="button" onClick={() => void openRequest(request.id)} className="rounded-lg bg-slate-50 px-3 py-2 text-left text-sm transition hover:bg-violet-50"><p className="font-semibold text-slate-800">{request.type}</p><p className="mt-1 text-muted">{request.status} · {request.giverName}</p></button>)}</div></article>
           </section>
-          {schedules.length ? <section className="mt-5 rounded-2xl border border-line/80 bg-white p-6 shadow-[0_10px_30px_rgba(15,23,42,0.06)]"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-bold uppercase tracking-wide text-violet-600">Scheduled feedback</p><h2 className="mt-1 text-xl font-bold text-slate-950">Your schedules</h2></div><span className="rounded-full bg-violet-50 px-3 py-1 text-sm font-semibold text-violet-700">{schedules.filter((schedule) => schedule.isActive).length} active</span></div><div className="mt-4 grid gap-3">{schedules.map((schedule) => <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3" key={schedule.id}><div><p className="font-semibold text-slate-900">{schedule.templateName} · {schedule.giverName} → {schedule.receiverName}</p><p className="mt-1 text-sm text-muted">{schedule.frequency === "once" ? `One time at ${schedule.scheduledTime || "scheduled time"}` : schedule.frequency === "quarterly" ? "Every 3 months" : "Monthly"} · Next request: {formatDueDate(schedule.nextRunDate)} · {schedule.dueInDays} days to respond</p></div><button className={secondaryButton} type="button" onClick={() => void setScheduleStatus(schedule.id, !schedule.isActive)}>{schedule.isActive ? "Pause" : "Resume"}</button></div>)}</div></section> : null}
           </> : null}
 
           {activePage === "reports" && isSafetyReviewer ? <SCReportReview reports={reports} onReview={(reportId, status) => void reviewReport(reportId, status)} onOpenRequest={(requestId) => void openRequest(requestId)} /> : null}
@@ -789,7 +771,7 @@ function Sidebar({ activePage, showSCReview, showAnalytics, showPeople, onSelect
 function PeopleManagement({ users, currentUserId, onUpdateStatus, onUpdateRole }) {
   return (
     <section className="mt-7 overflow-hidden rounded-2xl border border-line/80 bg-white shadow-[0_12px_36px_rgba(15,23,42,0.07)]">
-      <div className="border-b border-line px-6 py-5"><p className="font-bold text-slate-950">Account access</p><p className="mt-1 text-sm text-muted">Deactivating an account signs the person out, pauses their schedules, and updates open feedback requests. Completed history remains saved.</p></div>
+      <div className="border-b border-line px-6 py-5"><p className="font-bold text-slate-950">Account access</p><p className="mt-1 text-sm text-muted">Deactivating an account signs the person out and updates open feedback requests. Completed history remains saved.</p></div>
       <div className="divide-y divide-line">
         {users.map((user) => <article className="flex flex-wrap items-center justify-between gap-4 px-6 py-4" key={user.id}>
           <div><p className="font-semibold text-slate-900">{user.name}</p><p className="mt-1 text-sm text-muted">{user.email} · {user.role || "member"}</p></div>
@@ -908,11 +890,6 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
   const [templateId, setTemplateId] = useState("");
   const [message, setMessage] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [recurring, setRecurring] = useState(false);
-  const [frequency, setFrequency] = useState("quarterly");
-  const [scheduledTime, setScheduledTime] = useState("09:00");
-  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
-  const [dueInDays, setDueInDays] = useState("7");
   const [purpose, setPurpose] = useState("growth");
   const [visibility, setVisibility] = useState("private");
   const [isAnonymous, setIsAnonymous] = useState(false);
@@ -965,7 +942,6 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
     setTemplateId(String(replacementRequest.templateId));
     setPurpose(replacementRequest.rawPurpose || "growth");
     setDueDate("");
-    setRecurring(false);
     setViewerIds([]);
     setVisibility("private");
     setIsAnonymous(false);
@@ -978,13 +954,9 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
   async function submit(event) {
     event.preventDefault();
     if (!giverId || Number(giverId) === currentUserId) return;
-    if (!recurring && dueDate && dueDate < today) {
+    if (dueDate && dueDate < today) {
       setNoticeTone("error");
       setNotice("Due date cannot be in the past.");
-      return;
-    }
-    if (recurring && startDate < today) {
-      setNotice("First request date cannot be in the past.");
       return;
     }
     if (visibility === "mentor_lead" && viewerIds.length !== 1) {
@@ -1000,16 +972,11 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
       receiverId: Number(receiverId),
       templateId: Number(templateId),
       message,
-      dueDate: recurring ? undefined : dueDate,
+      dueDate,
       purpose,
       visibility,
       viewerIds,
       isAnonymous,
-      recurring,
-      frequency: recurring ? frequency : undefined,
-      scheduledTime: recurring ? scheduledTime : undefined,
-      startDate: recurring ? startDate : undefined,
-      dueInDays: recurring ? Number(dueInDays) : undefined,
     });
     if (result.ok) {
       onClose();
@@ -1179,9 +1146,9 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
           <p className="text-sm font-normal text-muted">Choose yourself for personal feedback, or another Justuju member when you are coordinating feedback for them.</p>
         </Field>
 
-        {!recurring ? <Field className={step === 2 ? "" : "hidden"} label="Due date (optional)">
+        <Field className={step === 2 ? "" : "hidden"} label="Due date (optional)">
           <input className={fieldClass} type="date" min={today} value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
-        </Field> : null}
+        </Field>
 
         {step === 2 ? <div className="flex items-center justify-between gap-3"><button className={secondaryButton} type="button" onClick={() => setStep(1)}>Back</button><button className={primaryButton} type="button" onClick={() => continueToStep(3)}>Continue</button></div> : null}
 
@@ -1389,7 +1356,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
           </div>
         </details>
 
-        {!recurring ? <details className="group rounded-xl border border-amber-200 bg-amber-50/50">
+        <details className="group rounded-xl border border-amber-200 bg-amber-50/50">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5 marker:hidden [&::-webkit-details-marker]:hidden">
             <span><span className="block font-bold text-slate-900">Privacy</span><span className="mt-0.5 block text-sm font-normal text-slate-600">Keep the feedback giver anonymous, if needed.</span></span>
             <span className="text-lg font-semibold text-amber-700 transition group-open:rotate-45">+</span>
@@ -1404,31 +1371,6 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
             </span>
           </label>
           </div>
-          </div>
-        </details> : null}
-
-        <details className="group rounded-xl border border-violet-200 bg-violet-50/60">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5 marker:hidden [&::-webkit-details-marker]:hidden">
-            <span><span className="block font-bold text-slate-900">Repeat request</span><span className="mt-0.5 block text-sm font-normal text-slate-600">Schedule regular feedback automatically.</span></span>
-            <span className="text-lg font-semibold text-violet-700 transition group-open:rotate-45">+</span>
-          </summary>
-          <div className="border-t border-violet-200 px-4 py-4">
-          <label className="flex cursor-pointer items-start gap-3">
-            <input className="mt-1 h-4 w-4" type="checkbox" checked={recurring} disabled={Boolean(replacementRequest)} onChange={(event) => {
-              setRecurring(event.target.checked);
-              if (event.target.checked) setIsAnonymous(false);
-            }} />
-            <span><span className="font-semibold text-slate-900">Repeat this feedback</span><span className="mt-1 block text-sm font-normal text-slate-600">Create future requests automatically for regular feedback.</span></span>
-          </label>
-          {recurring ? <div className="mt-4 grid gap-4 border-t border-violet-200 pt-4">
-            <Field label="Repeat frequency">
-              <SelectShell><select className="w-full bg-transparent outline-none" value={frequency} onChange={(event) => setFrequency(event.target.value)}><option value="once">One-time (date and time)</option><option value="monthly">Monthly</option><option value="quarterly">Every 3 months</option></select></SelectShell>
-            </Field>
-            <Field label="First request date"><input className={fieldClass} type="date" min={today} value={startDate} onChange={(event) => setStartDate(event.target.value)} required /></Field>
-            {frequency === "once" ? <Field label="Send request at"><input className={fieldClass} type="time" value={scheduledTime} onChange={(event) => setScheduledTime(event.target.value)} required /></Field> : null}
-            <Field label="Give feedback within"><SelectShell><select className="w-full bg-transparent outline-none" value={dueInDays} onChange={(event) => setDueInDays(event.target.value)}><option value="3">3 days</option><option value="7">7 days</option><option value="14">14 days</option></select></SelectShell></Field>
-            <p className="text-sm font-normal text-violet-800">The giver gets a Mattermost notification on every scheduled request.</p>
-          </div> : null}
           </div>
         </details>
 
@@ -1454,7 +1396,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
 
         <div className="flex items-center gap-3 pt-1"><button className={secondaryButton} type="button" onClick={() => setStep(2)}>Back</button><button className={`${primaryButton} flex-1 py-4 text-lg`} type="submit">
           <Send size={22} />
-          {recurring ? (frequency === "once" ? "Schedule request" : "Save recurring schedule") : "Send Request"}
+          Send Request
         </button></div>
         </div>
         {notice ? (

@@ -2,12 +2,9 @@ import { Router } from "express";
 
 import {
   createFeedbackRequest,
-  createFeedbackSchedule,
   createFeedbackDiscussion,
   createFollowUp,
   getFeedbackRequestById,
-  getFeedbackSchedules,
-  updateFeedbackScheduleStatus,
   getRequestsForGiver,
   getRequestsForReceiver,
   getRequestsForRequester,
@@ -28,9 +25,6 @@ const router = Router();
 router.use(requireAuth);
 
 router.post("/", createFeedbackRequest);
-router.post("/schedules", createFeedbackSchedule);
-router.get("/schedules", getFeedbackSchedules);
-router.patch("/schedules/:scheduleId", updateFeedbackScheduleStatus);
 router.get("/giver/:userId", getRequestsForGiver);
 router.get("/receiver/:userId", getRequestsForReceiver);
 router.get("/requester/:userId", getRequestsForRequester);
