@@ -876,6 +876,25 @@ function StatCard({ icon, tone, label, value, helper }) {
   );
 }
 
+function RequestProgress({ step }) {
+  const steps = ["Type", "Person", "Review & send"];
+  return (
+    <ol className="grid grid-cols-3 gap-2 rounded-2xl border border-blue-100 bg-blue-50/60 p-3" aria-label="Create feedback request progress">
+      {steps.map((label, index) => {
+        const stepNumber = index + 1;
+        const isCurrent = stepNumber === step;
+        const isComplete = stepNumber < step;
+        return <li className="min-w-0" key={label}>
+          <div className={`flex items-center gap-2 rounded-xl px-2 py-2 text-xs font-bold sm:text-sm ${isCurrent ? "bg-white text-blue-700 shadow-sm" : isComplete ? "text-emerald-700" : "text-slate-400"}`}>
+            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs ${isCurrent ? "bg-blue-600 text-white" : isComplete ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-500"}`}>{isComplete ? "✓" : stepNumber}</span>
+            <span className="truncate">{label}</span>
+          </div>
+        </li>;
+      })}
+    </ol>
+  );
+}
+
 function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, replacementRequest, onCreate, onCreateTemplate, onUpdateTemplate, onSetTemplateStatus, onClose }) {
   const possibleGivers = users.filter((user) => user.id !== currentUserId && user.isActive !== false);
   const [giverId, setGiverId] = useState("");
@@ -902,6 +921,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
   const [isManageTemplatesOpen, setIsManageTemplatesOpen] = useState(false);
   const [notice, setNotice] = useState(null);
   const [noticeTone, setNoticeTone] = useState("error");
+  const [step, setStep] = useState(1);
   const today = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
@@ -982,6 +1002,21 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
     }
     setNoticeTone("error");
     setNotice(result.message);
+  }
+
+  function continueToStep(nextStep) {
+    setNotice(null);
+    if (nextStep === 2 && !templateId) {
+      setNoticeTone("error");
+      setNotice("Choose a feedback type to continue.");
+      return;
+    }
+    if (nextStep === 3 && !giverId) {
+      setNoticeTone("error");
+      setNotice("Choose the person who will give feedback to continue.");
+      return;
+    }
+    setStep(nextStep);
   }
 
   function updateCustomQuestion(index, value) {
@@ -1083,8 +1118,10 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
         </button>
       </div>
 
-      <form className="grid gap-5" onSubmit={submit}>
-        <Field label="Feedback type">
+      <RequestProgress step={step} />
+
+      <form className="mt-6 grid gap-5" onSubmit={submit}>
+        <Field className={step === 1 ? "" : "hidden"} label="Feedback type">
           <SelectShell>
             <select className="w-full bg-transparent outline-none" value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
               {templates.map((template) => (
@@ -1096,7 +1133,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
           </SelectShell>
         </Field>
 
-        <Field label="Who will give feedback?">
+        <Field className={step === 2 ? "" : "hidden"} label="Who will give feedback?">
           <SelectShell>
             <Avatar initials={initialsForName(possibleGivers.find((user) => user.id === Number(giverId))?.name)} small />
             <select className="w-full bg-transparent outline-none" value={giverId} onChange={(event) => setGiverId(event.target.value)}>
@@ -1110,11 +1147,13 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
           <p className="text-sm font-normal text-muted">This person will receive the form and share their feedback with you.</p>
         </Field>
 
-        {!recurring ? <Field label="Due date (optional)">
+        {!recurring ? <Field className={step === 2 ? "" : "hidden"} label="Due date (optional)">
           <input className={fieldClass} type="date" min={today} value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
         </Field> : null}
 
-        <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/70 p-3.5">
+        {step === 2 ? <div className="flex items-center justify-between gap-3"><button className={secondaryButton} type="button" onClick={() => setStep(1)}>Back</button><button className={primaryButton} type="button" onClick={() => continueToStep(3)}>Continue</button></div> : null}
+
+        <div className={step === 1 ? "rounded-xl border border-dashed border-slate-300 bg-slate-50/70 p-3.5" : "hidden"}>
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-bold text-slate-900">Need your own questions?</p>
@@ -1229,8 +1268,12 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
               <span><strong>{savedTemplateName}</strong> is saved and selected. You can now choose the feedback giver and send the request.</span>
             </div>
           ) : null}
+          <div className="mt-5 flex items-center justify-end gap-3 border-t border-dashed border-slate-300 pt-4">
+            <button className={primaryButton} type="button" onClick={() => continueToStep(2)}>Continue</button>
+          </div>
         </div>
 
+        <div className={step === 3 ? "grid gap-5" : "hidden"}>
         <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
           <span className="font-semibold">You will receive the completed feedback.</span> It is linked to your account automatically.
         </div>
@@ -1377,10 +1420,11 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
         </details>
         </> : null}
 
-        <button className={`${primaryButton} mt-4 w-full py-4 text-lg`} type="submit">
+        <div className="flex items-center gap-3 pt-1"><button className={secondaryButton} type="button" onClick={() => setStep(2)}>Back</button><button className={`${primaryButton} flex-1 py-4 text-lg`} type="submit">
           <Send size={22} />
           {recurring ? (frequency === "once" ? "Schedule request" : "Save recurring schedule") : "Send Request"}
-        </button>
+        </button></div>
+        </div>
         {notice ? (
           <p
             className={`rounded-lg border px-4 py-3 text-center text-sm font-medium ${
@@ -1405,9 +1449,9 @@ function SelectShell({ children }) {
   );
 }
 
-function Field({ label, children }) {
+function Field({ label, children, className = "" }) {
   return (
-    <label className="grid gap-2 text-base font-medium text-[#1f2937]">
+    <label className={`grid gap-2 text-base font-medium text-[#1f2937] ${className}`}>
       <span>{label}</span>
       {children}
     </label>
@@ -1653,6 +1697,7 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
         </div>
 
         <form className="grid gap-5 p-6 sm:p-8" onSubmit={submit}>
+          <RequestStatusTimeline status={request.status} />
           <div className="rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3 text-sm">
             <p className="font-semibold text-slate-800">Feedback purpose</p>
             <p className="mt-1 text-slate-600">{formatPurpose(request.purpose)}</p>
@@ -1758,6 +1803,35 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
       {isReportOpen ? <ReportFeedbackModal request={request} onClose={() => setIsReportOpen(false)} onReport={onReport} /> : null}
       {isModerationOpen ? <ModerateFeedbackModal request={request} onClose={() => setIsModerationOpen(false)} onModerate={onModerate} /> : null}
     </div>
+  );
+}
+
+function RequestStatusTimeline({ status }) {
+  const stopped = status === "declined" || status === "cancelled";
+  const stages = [
+    { key: "requested", label: "Requested" },
+    { key: "in_progress", label: "In progress" },
+    { key: "submitted", label: "Submitted" },
+    { key: "acknowledged", label: "Acknowledged" },
+    { key: "closed", label: "Closed" },
+  ];
+  const activeIndex = stopped ? 0 : status === "overdue" ? 1 : status === "follow_up_needed" ? 3 : Math.max(0, stages.findIndex((stage) => stage.key === status));
+  const heading = status === "declined" ? "This request was declined" : status === "cancelled" ? "This request was cancelled" : status === "overdue" ? "Feedback is overdue" : "Request progress";
+
+  return (
+    <section className={`rounded-2xl border p-4 ${stopped ? "border-red-100 bg-red-50/60" : "border-slate-200 bg-slate-50/70"}`} aria-label={heading}>
+      <div className="mb-3 flex items-center justify-between gap-3"><p className="text-sm font-bold text-slate-900">{heading}</p><span className={statusClass(status)}>{String(status).replaceAll("_", " ")}</span></div>
+      <ol className="grid grid-cols-5 gap-1">
+        {stages.map((stage, index) => {
+          const isComplete = !stopped && index < activeIndex;
+          const isCurrent = !stopped && index === activeIndex;
+          return <li className="min-w-0 text-center" key={stage.key}>
+            <div className={`mx-auto flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${isCurrent ? "bg-blue-600 text-white ring-4 ring-blue-100" : isComplete ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-500"}`}>{isComplete ? "✓" : index + 1}</div>
+            <p className={`mt-2 truncate text-[10px] font-bold sm:text-xs ${isCurrent ? "text-blue-700" : isComplete ? "text-emerald-700" : "text-slate-500"}`}>{stage.label}</p>
+          </li>;
+        })}
+      </ol>
+    </section>
   );
 }
 
