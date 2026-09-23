@@ -14,7 +14,9 @@ export async function getAllUsers() {
 }
 
 const adminRoles = new Set(["admin", "hr", "sc"]);
-const assignableRoles = new Set(["member", "mentor", "lead", "manager", "sc", "hr", "admin", "external"]);
+// Feedback Process is an internal Justuju workspace. External collaborators
+// are intentionally not an assignable role.
+const assignableRoles = new Set(["member", "mentor", "lead", "manager", "sc", "hr", "admin"]);
 const openStatuses = ["requested", "in_progress", "overdue", "submitted", "acknowledged", "follow_up_needed"];
 
 /**
