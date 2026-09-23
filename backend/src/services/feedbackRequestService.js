@@ -526,7 +526,9 @@ export async function getFeedbackRequestById(requestId) {
        follow_up.progress_note AS progressNote,
        follow_up.completed_at AS completedAt,
        follow_up.created_at AS createdAt,
-       follow_up.updated_at AS updatedAt
+       follow_up.updated_at AS updatedAt,
+       COALESCE((SELECT GROUP_CONCAT(link.user_id ORDER BY participant_user.name SEPARATOR ',') FROM feedback_follow_up_participants AS link JOIN users AS participant_user ON participant_user.id = link.user_id WHERE link.follow_up_id = follow_up.id), '') AS participantIds,
+       COALESCE((SELECT GROUP_CONCAT(participant_user.name ORDER BY participant_user.name SEPARATOR ', ') FROM feedback_follow_up_participants AS link JOIN users AS participant_user ON participant_user.id = link.user_id WHERE link.follow_up_id = follow_up.id), '') AS participantNames
      FROM feedback_follow_ups AS follow_up
      JOIN users AS owner ON owner.id = follow_up.owner_id
      WHERE follow_up.request_id = ?
@@ -699,7 +701,7 @@ export async function createFeedbackDiscussion({ requestId, actorId, type, messa
   return feedbackRequest;
 }
 
-export async function createFollowUp({ requestId, actorId, details, ownerId, dueDate }) {
+export async function createFollowUp({ requestId, actorId, details, ownerId, dueDate, participantIds = [] }) {
   const normalizedDueDate = normalizeDueDate(dueDate);
   const pool = getDatabasePool();
   const [[request]] = await pool.execute(
@@ -715,6 +717,22 @@ export async function createFollowUp({ requestId, actorId, details, ownerId, due
   if (![request.requesterId, request.giverId, request.receiverId].includes(ownerId)) {
     throw new ServiceError(400, "Follow-up owner must be part of this feedback request");
   }
+  if (!Array.isArray(participantIds) || participantIds.some((id) => !Number.isInteger(Number(id)) || Number(id) <= 0)) {
+    throw new ServiceError(400, "participantIds must contain positive user IDs");
+  }
+  const participants = [...new Set(participantIds.map(Number))].filter((id) => id !== ownerId);
+  if (participants.length) {
+    const [allowedPeople] = await pool.execute(
+      `SELECT id FROM users WHERE id IN (${[request.requesterId, request.giverId, request.receiverId, ...participants].map(() => '?').join(', ')})`,
+      [request.requesterId, request.giverId, request.receiverId, ...participants],
+    );
+    if (allowedPeople.length < new Set([request.requesterId, request.giverId, request.receiverId, ...participants]).size) {
+      throw new ServiceError(404, "A follow-up participant was not found");
+    }
+    const [viewers] = await pool.execute("SELECT user_id AS userId FROM feedback_request_viewers WHERE request_id = ?", [requestId]);
+    const allowedIds = new Set([request.requesterId, request.giverId, request.receiverId, ...viewers.map((viewer) => viewer.userId)]);
+    if (participants.some((id) => !allowedIds.has(id))) throw new ServiceError(400, "Follow-up participants must be included in this feedback request");
+  }
   const connection = await pool.getConnection();
   let result;
   try {
@@ -724,19 +742,20 @@ export async function createFollowUp({ requestId, actorId, details, ownerId, due
        VALUES (?, ?, ?, ?)`,
       [requestId, details.trim(), ownerId, normalizedDueDate],
     );
+    for (const participantId of participants) {
+      await connection.execute("INSERT INTO feedback_follow_up_participants (follow_up_id, user_id) VALUES (?, ?)", [result.insertId, participantId]);
+    }
     await connection.execute("UPDATE feedback_requests SET status = 'follow_up_needed' WHERE id = ?", [requestId]);
     await writeFeedbackAuditEvent({ requestId, actorId, eventType: "follow_up_created", details: details.trim(), connection });
     await connection.commit();
   } catch (error) { await connection.rollback(); throw error; } finally { connection.release(); }
-  if (ownerId !== actorId) {
-    await notifyUser({
-      userId: ownerId,
-      requestId,
-      type: "follow_up_assigned",
-      title: "You have a follow-up action",
-      message: `Follow-up assigned: ${details.trim()}`,
-    });
-  }
+  await Promise.all([...new Set([ownerId, ...participants])].filter((userId) => userId !== actorId).map((userId) => notifyUser({
+    userId,
+    requestId,
+    type: userId === ownerId ? "follow_up_assigned" : "follow_up_participant",
+    title: userId === ownerId ? "You have a follow-up action" : "You were added to a follow-up discussion",
+    message: `Follow-up: ${details.trim()}`,
+  })));
   return getFollowUpById(result.insertId);
 }
 
@@ -797,7 +816,9 @@ async function getFollowUpById(followUpId) {
          ELSE 0
        END AS overdueDays,
        follow_up.progress_note AS progressNote,
-       follow_up.completed_at AS completedAt, follow_up.created_at AS createdAt
+       follow_up.completed_at AS completedAt, follow_up.created_at AS createdAt,
+       COALESCE((SELECT GROUP_CONCAT(link.user_id ORDER BY participant_user.name SEPARATOR ',') FROM feedback_follow_up_participants AS link JOIN users AS participant_user ON participant_user.id = link.user_id WHERE link.follow_up_id = follow_up.id), '') AS participantIds,
+       COALESCE((SELECT GROUP_CONCAT(participant_user.name ORDER BY participant_user.name SEPARATOR ', ') FROM feedback_follow_up_participants AS link JOIN users AS participant_user ON participant_user.id = link.user_id WHERE link.follow_up_id = follow_up.id), '') AS participantNames
      FROM feedback_follow_ups AS follow_up
      JOIN users AS owner ON owner.id = follow_up.owner_id
      WHERE follow_up.id = ?`,

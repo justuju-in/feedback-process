@@ -2123,15 +2123,21 @@ function FollowUpModal({ request, onClose, onSubmit }) {
   const [details, setDetails] = useState("");
   const [ownerId, setOwnerId] = useState(String(request.requesterId));
   const [dueDate, setDueDate] = useState("");
+  const [participantIds, setParticipantIds] = useState([]);
   const [notice, setNotice] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
-  const people = [{ id: request.requesterId, name: request.requesterName }, { id: request.giverId, name: request.giverName }];
+  const people = [...new Map([
+    { id: request.requesterId, name: request.requesterName },
+    { id: request.giverId, name: request.giverName },
+    { id: request.receiverId, name: request.receiverName },
+    ...(request.viewers || []),
+  ].map((person) => [person.id, person])).values()];
   async function submit(event) {
     event.preventDefault();
     if (details.trim().length < 3) return setNotice("Please add at least 3 characters.");
     setIsSaving(true); setNotice("");
-    const saved = await onSubmit({ details, ownerId: Number(ownerId), dueDate });
+    const saved = await onSubmit({ details, ownerId: Number(ownerId), dueDate, participantIds });
     if (!saved) setIsSaving(false);
   }
   return (
@@ -2142,6 +2148,12 @@ function FollowUpModal({ request, onClose, onSubmit }) {
         <form className="mt-6 grid gap-4" onSubmit={submit}>
           <Field label="Action or discussion details"><textarea className={`${fieldClass} min-h-28`} value={details} maxLength={500} onChange={(event) => setDetails(event.target.value)} placeholder="Example: Discuss the feedback in next week's meeting." required /></Field>
           <Field label="Owner"><select className={fieldClass} value={ownerId} onChange={(event) => setOwnerId(event.target.value)}>{people.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select></Field>
+          <Field label="Discussion participants (optional)">
+            <div className="grid gap-2 rounded-xl border border-line bg-slate-50 p-3">
+              {people.filter((person) => person.id !== Number(ownerId)).map((person) => <label className="flex items-center gap-3 rounded-lg px-2 py-1 text-sm font-medium text-slate-700" key={person.id}><input type="checkbox" checked={participantIds.includes(person.id)} onChange={(event) => setParticipantIds((ids) => event.target.checked ? [...ids, person.id] : ids.filter((id) => id !== person.id))} />{person.name}</label>)}
+            </div>
+            <p className="text-sm font-normal text-muted">Selected people receive an in-app notification about this follow-up.</p>
+          </Field>
           <Field label="Due date (optional)"><input className={fieldClass} type="date" min={today} value={dueDate} onChange={(event) => setDueDate(event.target.value)} /></Field>
           {notice ? <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{notice}</p> : null}
           <div className="flex justify-end gap-3"><button className={secondaryButton} type="button" onClick={onClose}>Cancel</button><button className={primaryButton} disabled={isSaving} type="submit">{isSaving ? "Creating…" : "Create follow-up"}</button></div>

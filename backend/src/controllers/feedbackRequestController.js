@@ -264,10 +264,10 @@ export async function updateFeedbackRequestDueDate(req, res) {
 export async function createFollowUp(req, res) {
   const requestId = parsePositiveInteger(req.params.id);
   const ownerId = parsePositiveInteger(req.body.ownerId);
-  const { details, dueDate } = req.body;
+  const { details, dueDate, participantIds } = req.body;
   if (!requestId || !ownerId) return res.status(400).json({ message: "Request ID and owner ID must be positive integers" });
   try {
-    const followUp = await createFollowUpInDatabase({ requestId, actorId: req.auth.user.id, details, ownerId, dueDate });
+    const followUp = await createFollowUpInDatabase({ requestId, actorId: req.auth.user.id, details, ownerId, dueDate, participantIds });
     return res.status(201).json({ message: "Follow-up created", followUp });
   } catch (error) {
     return respondWithError(res, error);

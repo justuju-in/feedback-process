@@ -544,6 +544,15 @@ CREATE TABLE IF NOT EXISTS feedback_follow_ups (
   FOREIGN KEY (owner_id) REFERENCES users(id)
 );
 
+CREATE TABLE IF NOT EXISTS feedback_follow_up_participants (
+  follow_up_id INT NOT NULL,
+  user_id INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (follow_up_id, user_id),
+  FOREIGN KEY (follow_up_id) REFERENCES feedback_follow_ups(id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
 CREATE TABLE IF NOT EXISTS feedback_request_viewers (
   request_id INT NOT NULL,
   user_id INT NOT NULL,
