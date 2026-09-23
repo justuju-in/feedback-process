@@ -432,10 +432,10 @@ export default function Home() {
 
       <MobileNavigation activePage={activePage} showSCReview={isSafetyReviewer} showAnalytics={canViewAnalytics} showPeople={canManagePeople} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
 
-      <div className={`grid flex-1 ${isCreateOpen ? "xl:grid-cols-[260px_1fr_420px]" : "xl:grid-cols-[260px_1fr]"}`}>
+      <div className={`grid min-w-0 flex-1 ${isCreateOpen ? "xl:grid-cols-[260px_minmax(0,1fr)_minmax(360px,420px)]" : "xl:grid-cols-[260px_minmax(0,1fr)]"}`}>
         <Sidebar activePage={activePage} showSCReview={isSafetyReviewer} showAnalytics={canViewAnalytics} showPeople={canManagePeople} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
 
-        <main className="border-x border-line/70 bg-white/55 px-5 py-7 backdrop-blur-sm sm:px-7 sm:py-8 lg:px-9 xl:px-10">
+        <main className="min-w-0 border-x border-line/70 bg-white/55 px-5 py-7 backdrop-blur-sm sm:px-7 sm:py-8 lg:px-9 xl:px-10">
           <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-700">
@@ -1116,7 +1116,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
   const manageableTemplates = templates.filter((template) => canModerateTemplates || template.createdBy === currentUserId);
 
   return (
-    <aside className="border-l border-line/80 bg-white/95 px-6 py-6 shadow-[-10px_0_30px_rgba(15,23,42,0.08)] backdrop-blur-sm sm:px-7 sm:py-7 lg:sticky lg:top-[72px] lg:max-h-[calc(100vh-72px)] lg:self-start lg:overflow-y-auto">
+    <aside className="min-w-0 border-l border-line/80 bg-white/95 px-6 py-6 shadow-[-10px_0_30px_rgba(15,23,42,0.08)] backdrop-blur-sm sm:px-7 sm:py-7 lg:sticky lg:top-[72px] lg:max-h-[calc(100vh-72px)] lg:self-start lg:overflow-y-scroll">
       <div className="mb-6 flex items-center justify-between gap-4">
         <div>
           <p className="mb-1 text-sm font-bold uppercase tracking-wide text-blue-600">{replacementRequest ? "Replacement request" : "New request"}</p>
@@ -1196,7 +1196,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
               }}
             >
               <Plus size={17} />
-              Custom
+              {isCustomTemplateOpen ? "Close custom" : "Custom"}
             </button>
           </div>
 
