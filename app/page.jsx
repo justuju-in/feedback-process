@@ -190,10 +190,6 @@ export default function Home() {
   async function createRequest(payload) {
     try {
       await api("/feedback-requests", { method: "POST", body: JSON.stringify(payload) });
-      // Close immediately after the server confirms creation. Refreshing the
-      // dashboard must not keep the request form open after a successful send.
-      setIsCreateOpen(false);
-      setReplacementRequest(null);
       void loadRequests(currentUserId);
       return { ok: true };
     } catch (createError) {
@@ -898,6 +894,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
   const possibleGivers = users.filter((user) => user.id !== currentUserId && user.isActive !== false);
   const possibleReceivers = users.filter((user) => user.isActive !== false);
   const [giverId, setGiverId] = useState("");
+  const [giverIds, setGiverIds] = useState([]);
   const [receiverId, setReceiverId] = useState(String(currentUserId || ""));
   const [templateId, setTemplateId] = useState("");
   const [templatePreviewQuestions, setTemplatePreviewQuestions] = useState([]);
@@ -922,6 +919,8 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
   const [step, setStep] = useState(1);
   const [isSendingRequest, setIsSendingRequest] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
+  const selectedTemplate = templates.find((template) => template.id === Number(templateId));
+  const isGroupFeedback = selectedTemplate?.name === "Group Feedback";
 
   useEffect(() => {
     if (!possibleGivers.some((user) => user.id === Number(giverId))) {
@@ -935,14 +934,15 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
     }
   }, [currentUserId, possibleReceivers, receiverId]);
 
+  const selectedGiverIds = isGroupFeedback ? giverIds : (giverId ? [Number(giverId)] : []);
   const possibleViewers = users.filter(
-    (user) => user.id !== currentUserId && user.id !== Number(giverId) && user.id !== Number(receiverId) && user.isActive !== false,
+    (user) => user.id !== currentUserId && !selectedGiverIds.includes(user.id) && user.id !== Number(receiverId) && user.isActive !== false,
   );
   const mentorLeadViewers = possibleViewers.filter((user) => ["mentor", "lead", "manager"].includes(String(user.role || "").toLowerCase()));
 
   useEffect(() => {
     setViewerIds((currentIds) => currentIds.filter((id) => possibleViewers.some((user) => user.id === id)));
-  }, [giverId, receiverId, currentUserId, users]);
+  }, [giverId, giverIds, receiverId, currentUserId, users]);
 
   useEffect(() => {
     if (!templates.some((template) => template.id === Number(templateId))) {
@@ -975,7 +975,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
   // as the user changes the people, purpose, feedback type, or due date.
   useEffect(() => {
     setNotice(null);
-  }, [giverId, receiverId, templateId, purpose, dueDate]);
+  }, [giverId, giverIds, receiverId, templateId, purpose, dueDate]);
 
   useEffect(() => {
     if (!replacementRequest) return;
@@ -995,7 +995,8 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
 
   async function submit(event) {
     event.preventDefault();
-    if (!giverId || Number(giverId) === currentUserId) return;
+    const selectedGivers = isGroupFeedback ? giverIds : [Number(giverId)];
+    if (!selectedGivers.length || selectedGivers.includes(currentUserId)) return;
     if (dueDate && dueDate < today) {
       setNoticeTone("error");
       setNotice("Due date cannot be in the past.");
@@ -1009,20 +1010,24 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
       setNotice("Choose at least one group member who can view this feedback.");
       return;
     }
-    const hasOpenDuplicate = requests.some((request) => (
+    const hasOpenDuplicate = selectedGivers.some((selectedGiverId) => requests.some((request) => (
       Number(request.requesterId) === Number(currentUserId)
-      && Number(request.giverId) === Number(giverId)
+      && Number(request.giverId) === Number(selectedGiverId)
       && Number(request.receiverId) === Number(receiverId)
       && String(request.purpose || "") === String(purpose || "")
       && ["requested", "in_progress", "overdue", "submitted", "acknowledged", "follow_up_needed"].includes(request.status)
-    ));
+    )));
     if (hasOpenDuplicate) {
       setNoticeTone("error");
       setNotice("An open request for this feedback purpose and these people already exists. Choose a different purpose, or complete/cancel the open request first. A different date or feedback type does not create a new request.");
       return;
     }
     setIsSendingRequest(true);
-    const result = await onCreate({ giverId: Number(giverId), receiverId: Number(receiverId), templateId: Number(templateId), message, dueDate, purpose, visibility, viewerIds, isAnonymous });
+    let result = { ok: true };
+    for (const selectedGiverId of selectedGivers) {
+      result = await onCreate({ giverId: selectedGiverId, receiverId: Number(receiverId), templateId: Number(templateId), message, dueDate, purpose, visibility, viewerIds, isAnonymous });
+      if (!result.ok) break;
+    }
     setIsSendingRequest(false);
     if (result.ok) {
       onClose();
@@ -1039,9 +1044,14 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
       setNotice("Choose a feedback type to continue.");
       return;
     }
-    if (nextStep === 3 && !giverId) {
+    if (nextStep === 3 && !giverId && !isGroupFeedback) {
       setNoticeTone("error");
       setNotice("Choose the person who will give feedback to continue.");
+      return;
+    }
+    if (nextStep === 3 && isGroupFeedback && !giverIds.length) {
+      setNoticeTone("error");
+      setNotice("Choose at least one person who will give group feedback.");
       return;
     }
     if (nextStep === 3 && !receiverId) {
@@ -1063,6 +1073,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
     setCustomTemplateDescription("");
     setCustomQuestions(["", "", ""]);
     setSavedTemplateName("");
+    if (templates.find((template) => template.id === Number(nextTemplateId))?.name !== "Group Feedback") setGiverIds([]);
     setNotice(null);
   }
 
@@ -1198,8 +1209,22 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
           </ol> : <p className="mt-3 text-sm text-muted">No questions are available for this feedback type.</p>}
         </section> : null}
 
-        <Field className={step === 2 ? "" : "hidden"} label="Who will give feedback?">
-          <SelectShell>
+        <Field className={step === 2 ? "" : "hidden"} label={isGroupFeedback ? "Who will give group feedback?" : "Who will give feedback?"}>
+          {isGroupFeedback ? <div className="grid gap-2 rounded-xl border border-line bg-slate-50/70 p-3">
+            {possibleGivers.map((user) => {
+              const isSelected = giverIds.includes(user.id);
+              return <label className="flex cursor-pointer items-center gap-3 rounded-lg bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm" key={user.id}>
+                <input
+                  className="h-4 w-4 accent-emerald-700"
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => setGiverIds((ids) => isSelected ? ids.filter((id) => id !== user.id) : [...ids, user.id])}
+                />
+                <Avatar initials={initialsForName(user.name)} small />
+                <span>{user.name}</span>
+              </label>;
+            })}
+          </div> : <SelectShell>
             <Avatar initials={initialsForName(possibleGivers.find((user) => user.id === Number(giverId))?.name)} small />
             <select className="w-full bg-transparent outline-none" value={giverId} onChange={(event) => setGiverId(event.target.value)}>
               {possibleGivers.map((user) => (
@@ -1208,8 +1233,8 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
                 </option>
               ))}
             </select>
-          </SelectShell>
-          <p className="text-sm font-normal text-muted">This person will receive the form and share their feedback.</p>
+          </SelectShell>}
+          <p className="text-sm font-normal text-muted">{isGroupFeedback ? "Each selected person will receive a separate private form. Their answers are not shared with other feedback givers." : "This person will receive the form and share their feedback."}</p>
         </Field>
 
         <Field className={step === 2 ? "" : "hidden"} label="Who will receive feedback?">
