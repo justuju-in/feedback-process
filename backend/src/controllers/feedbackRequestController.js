@@ -66,20 +66,24 @@ export async function createFeedbackRequest(req, res) {
 
 export async function createDirectFeedback(req, res) {
   const giverId = req.auth.user.id;
-  const receiverId = parsePositiveInteger(req.body.receiverId);
+  const submittedReceiverIds = Array.isArray(req.body.receiverIds) ? req.body.receiverIds : [req.body.receiverId];
+  const receiverIds = [...new Set(submittedReceiverIds.map(parsePositiveInteger))];
   const templateId = parsePositiveInteger(req.body.templateId);
   const { answers, purpose } = req.body;
 
   if (req.auth.user.role === "external") return res.status(403).json({ message: "External collaborators cannot give direct feedback." });
-  if (!receiverId || !templateId) return res.status(400).json({ message: "receiverId and templateId must be positive integers" });
+  if (!receiverIds.length || receiverIds.some((id) => !id) || !templateId) return res.status(400).json({ message: "receiverIds and templateId must be positive integers" });
 
   try {
-    const createdFeedback = await createFeedbackRequestInDatabase({
-      requesterId: giverId, giverId, receiverId, templateId, purpose,
-      visibility: "private", viewerIds: [], isAnonymous: false, isDirectFeedback: true,
-    });
-    const feedbackRequest = await saveFeedbackAnswers(createdFeedback.id, giverId, answers);
-    return res.status(201).json({ message: "Feedback shared", feedbackRequest });
+    const feedbackRequests = [];
+    for (const receiverId of receiverIds) {
+      const createdFeedback = await createFeedbackRequestInDatabase({
+        requesterId: giverId, giverId, receiverId, templateId, purpose,
+        visibility: "private", viewerIds: [], isAnonymous: false, isDirectFeedback: true,
+      });
+      feedbackRequests.push(await saveFeedbackAnswers(createdFeedback.id, giverId, answers));
+    }
+    return res.status(201).json({ message: "Feedback shared", feedbackRequests });
   } catch (error) {
     return respondWithError(res, error);
   }
