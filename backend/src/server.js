@@ -84,6 +84,21 @@ async function startServer() {
     )`,
   );
 
+  // Blocked content attempts are tracked without storing the private text.
+  await getDatabasePool().execute(
+    `CREATE TABLE IF NOT EXISTS feedback_policy_audit_log (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      actor_id INT NOT NULL,
+      request_id INT NULL,
+      event_type VARCHAR(100) NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_policy_audit_actor (actor_id),
+      INDEX idx_policy_audit_request (request_id),
+      FOREIGN KEY (actor_id) REFERENCES users(id),
+      FOREIGN KEY (request_id) REFERENCES feedback_requests(id)
+    )`,
+  );
+
   // A request keeps the exact questions that were selected when it was created.
   // Later template improvements must apply only to future requests.
   await getDatabasePool().execute(

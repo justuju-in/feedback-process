@@ -11,7 +11,8 @@ import { sendFeedbackEmail } from "../integrations/email.js";
 import { ServiceError } from "./serviceError.js";
 import { createInAppNotification } from "./notificationService.js";
 import { writeFeedbackAuditEvent } from "./feedbackAuditService.js";
-import { validateRespectfulFeedbackText } from "./feedbackContentPolicy.js";
+import { FEEDBACK_CONTENT_POLICY_VIOLATION, validateRespectfulFeedbackText } from "./feedbackContentPolicy.js";
+import { writeFeedbackPolicyEvent } from "./feedbackPolicyAuditService.js";
 
 const requestSelect = `
   SELECT
@@ -707,6 +708,13 @@ export async function createFeedbackDiscussion({ requestId, actorId, type, messa
     await connection.commit();
   } catch (error) {
     await connection.rollback();
+    if (error.code === FEEDBACK_CONTENT_POLICY_VIOLATION) {
+      try {
+        await writeFeedbackPolicyEvent({ actorId, requestId, eventType: "feedback_conversation_blocked" });
+      } catch (auditError) {
+        console.error("Feedback policy audit failed:", auditError.message);
+      }
+    }
     throw error;
   } finally {
     connection.release();

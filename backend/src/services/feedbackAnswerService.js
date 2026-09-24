@@ -6,7 +6,8 @@ import { getFeedbackRequestById } from "./feedbackRequestService.js";
 import { ServiceError } from "./serviceError.js";
 import { createInAppNotification } from "./notificationService.js";
 import { writeFeedbackAuditEvent } from "./feedbackAuditService.js";
-import { validateRespectfulFeedbackText } from "./feedbackContentPolicy.js";
+import { FEEDBACK_CONTENT_POLICY_VIOLATION, validateAnonymousFeedbackText, validateRespectfulFeedbackText } from "./feedbackContentPolicy.js";
+import { writeFeedbackPolicyEvent } from "./feedbackPolicyAuditService.js";
 
 function normalizeAnswers(answers, questions) {
   if (!Array.isArray(answers) || answers.length === 0) {
@@ -41,14 +42,15 @@ function normalizeAnswers(answers, questions) {
   }));
 }
 
-function validateAnswers(normalizedAnswers, questions, requireText) {
+function validateAnswers(normalizedAnswers, questions, requireText, isAnonymous = false) {
   const validQuestionIds = new Set(questions.map((question) => question.id));
   const usedQuestionIds = new Set();
   for (const item of normalizedAnswers) {
     if (!validQuestionIds.has(item.questionId)) throw new ServiceError(400, "Every answer must reference a question from the selected template");
     if (usedQuestionIds.has(item.questionId)) throw new ServiceError(400, "A question can only be answered once");
     if (requireText && !item.answer) throw new ServiceError(400, "Answer text cannot be empty");
-    validateRespectfulFeedbackText(item.answer);
+    if (isAnonymous) validateAnonymousFeedbackText(item.answer);
+    else validateRespectfulFeedbackText(item.answer);
     if (item.rating !== null && (!Number.isInteger(item.rating) || item.rating < 1 || item.rating > 5)) throw new ServiceError(400, "Rating must be between 1 and 5");
     usedQuestionIds.add(item.questionId);
   }
@@ -83,7 +85,7 @@ export async function submitFeedbackAnswers(requestId, giverId, answers) {
     await connection.beginTransaction();
 
     const [[request]] = await connection.execute(
-      `SELECT id, giver_id AS giverId, template_id AS templateId, status
+      `SELECT id, giver_id AS giverId, template_id AS templateId, is_anonymous AS isAnonymous, status
        FROM feedback_requests
        WHERE id = ?
        FOR UPDATE`,
@@ -111,7 +113,7 @@ export async function submitFeedbackAnswers(requestId, giverId, answers) {
     const questions = await getQuestionsForRequest(connection, requestId, request.templateId);
 
     const normalizedAnswers = normalizeAnswers(answers, questions);
-    validateAnswers(normalizedAnswers, questions, true);
+    validateAnswers(normalizedAnswers, questions, true, Boolean(request.isAnonymous));
 
     const [[existingAnswer]] = await connection.execute(
       "SELECT id FROM feedback_answers WHERE request_id = ? LIMIT 1",
@@ -142,6 +144,13 @@ export async function submitFeedbackAnswers(requestId, giverId, answers) {
     await connection.commit();
   } catch (error) {
     await connection.rollback();
+    if (error.code === FEEDBACK_CONTENT_POLICY_VIOLATION) {
+      try {
+        await writeFeedbackPolicyEvent({ actorId: giverId, requestId, eventType: "feedback_submission_blocked" });
+      } catch (auditError) {
+        console.error("Feedback policy audit failed:", auditError.message);
+      }
+    }
     throw error;
   } finally {
     connection.release();

@@ -17,6 +17,8 @@ import {
 import { respondWithError } from "./respondWithError.js";
 import { writeFeedbackAuditEvent } from "../services/feedbackAuditService.js";
 import { getDatabasePool } from "../db/connection.js";
+import { FEEDBACK_CONTENT_POLICY_VIOLATION, validateDirectFeedbackAnswers } from "../services/feedbackContentPolicy.js";
+import { writeFeedbackPolicyEvent } from "../services/feedbackPolicyAuditService.js";
 
 const allowedActions = ["start", "decline", "cancel", "acknowledge", "close", "hide", "remove", "reopen"];
 
@@ -75,6 +77,7 @@ export async function createDirectFeedback(req, res) {
   if (!receiverIds.length || receiverIds.some((id) => !id) || !templateId) return res.status(400).json({ message: "receiverIds and templateId must be positive integers" });
 
   try {
+    validateDirectFeedbackAnswers(answers, Boolean(isAnonymous));
     const feedbackRequests = [];
     for (const receiverId of receiverIds) {
       const createdFeedback = await createFeedbackRequestInDatabase({
@@ -85,6 +88,13 @@ export async function createDirectFeedback(req, res) {
     }
     return res.status(201).json({ message: "Feedback shared", feedbackRequests });
   } catch (error) {
+    if (error.code === FEEDBACK_CONTENT_POLICY_VIOLATION) {
+      try {
+        await writeFeedbackPolicyEvent({ actorId: giverId, eventType: "direct_feedback_blocked" });
+      } catch (auditError) {
+        console.error("Feedback policy audit failed:", auditError.message);
+      }
+    }
     return respondWithError(res, error);
   }
 }
