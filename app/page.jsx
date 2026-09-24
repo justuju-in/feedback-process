@@ -1010,26 +1010,32 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
       setNotice("Choose at least one group member who can view this feedback.");
       return;
     }
-    const hasOpenDuplicate = selectedGivers.some((selectedGiverId) => requests.some((request) => (
+    const duplicateGiverIds = selectedGivers.filter((selectedGiverId) => requests.some((request) => (
       Number(request.requesterId) === Number(currentUserId)
       && Number(request.giverId) === Number(selectedGiverId)
       && Number(request.receiverId) === Number(receiverId)
       && String(request.purpose || "") === String(purpose || "")
       && ["requested", "in_progress", "overdue", "submitted", "acknowledged", "follow_up_needed"].includes(request.status)
     )));
-    if (hasOpenDuplicate) {
+    const giverIdsToRequest = selectedGivers.filter((selectedGiverId) => !duplicateGiverIds.includes(selectedGiverId));
+    if (!giverIdsToRequest.length) {
       setNoticeTone("error");
-      setNotice("An open request for this feedback purpose and these people already exists. Choose a different purpose, or complete/cancel the open request first. A different date or feedback type does not create a new request.");
+      const duplicateNames = duplicateGiverIds.map((id) => possibleGivers.find((user) => user.id === id)?.name).filter(Boolean).join(", ");
+      setNotice(`An open request with this feedback purpose already exists for ${duplicateNames}. Complete/cancel it first, or choose a different purpose.`);
       return;
     }
     setIsSendingRequest(true);
     let result = { ok: true };
-    for (const selectedGiverId of selectedGivers) {
+    for (const selectedGiverId of giverIdsToRequest) {
       result = await onCreate({ giverId: selectedGiverId, receiverId: Number(receiverId), templateId: Number(templateId), message, dueDate, purpose, visibility, viewerIds, isAnonymous });
       if (!result.ok) break;
     }
     setIsSendingRequest(false);
     if (result.ok) {
+      if (duplicateGiverIds.length) {
+        const duplicateNames = duplicateGiverIds.map((id) => possibleGivers.find((user) => user.id === id)?.name).filter(Boolean).join(", ");
+        window.alert(`Requests were sent to ${giverIdsToRequest.length} person${giverIdsToRequest.length === 1 ? "" : "s"}. ${duplicateNames} was skipped because an open request with the same purpose already exists.`);
+      }
       onClose();
       return;
     }
