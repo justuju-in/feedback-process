@@ -883,10 +883,9 @@ function StatCard({ icon, tone, label, value, helper }) {
   );
 }
 
-function RequestProgress({ step }) {
-  const steps = ["Type", "Person", "Review & send"];
+function RequestProgress({ step, steps = ["Type", "Person", "Review & send"], ariaLabel = "Create feedback request progress" }) {
   return (
-    <ol className="grid grid-cols-3 gap-2 rounded-2xl border border-blue-100 bg-blue-50/60 p-3" aria-label="Create feedback request progress">
+    <ol className="grid grid-cols-3 gap-2 rounded-2xl border border-blue-100 bg-blue-50/60 p-3" aria-label={ariaLabel}>
       {steps.map((label, index) => {
         const stepNumber = index + 1;
         const isCurrent = stepNumber === step;
@@ -914,6 +913,11 @@ function GiveFeedbackModal({ currentUser, users, templates, onClose, onSubmit })
   const [answers, setAnswers] = useState({});
   const [notice, setNotice] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [step, setStep] = useState(1);
+  const selectedTemplate = availableTemplates.find((template) => template.id === Number(templateId));
+  const selectedPeople = shareMode === "group"
+    ? recipients.filter((user) => receiverIds.includes(user.id))
+    : recipients.filter((user) => user.id === Number(receiverId));
 
   useEffect(() => {
     if (!recipients.some((user) => user.id === Number(receiverId))) setReceiverId(String(recipients[0]?.id || ""));
@@ -953,6 +957,20 @@ function GiveFeedbackModal({ currentUser, users, templates, onClose, onSubmit })
     else setNotice(result.message || "Feedback could not be shared.");
   }
 
+  function continueToStep(nextStep) {
+    setNotice("");
+    const selectedReceiverIds = shareMode === "group" ? receiverIds : [Number(receiverId)];
+    if (nextStep === 2 && (!selectedReceiverIds.length || !templateId || !questions.length)) {
+      setNotice("Choose at least one person and a feedback type with questions.");
+      return;
+    }
+    if (nextStep === 3 && questions.some((question) => !(answers[question.id]?.answer || "").trim())) {
+      setNotice("Please answer every question before continuing.");
+      return;
+    }
+    setStep(nextStep);
+  }
+
   return (
     <aside className="min-w-0 border-l border-line/80 bg-white/95 px-6 py-6 shadow-[-10px_0_30px_rgba(15,23,42,0.08)] backdrop-blur-sm sm:px-7 sm:py-7 lg:sticky lg:top-[72px] lg:max-h-[calc(100vh-72px)] lg:self-start lg:overflow-y-scroll">
       <form className="grid gap-1" onSubmit={submit}>
@@ -960,15 +978,20 @@ function GiveFeedbackModal({ currentUser, users, templates, onClose, onSubmit })
           <div><p className="text-sm font-bold uppercase tracking-wide text-emerald-700">New feedback</p><h2 className="mt-1 text-3xl font-extrabold text-slate-950">Give feedback</h2><p className="mt-2 text-sm text-muted">Share private, helpful feedback directly. People do not need to request it first.</p></div>
           <button className="rounded-lg p-2 text-muted hover:bg-slate-100" type="button" aria-label="Close give feedback form" onClick={onClose}>×</button>
         </div>
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <RequestProgress step={step} steps={["Person", "Feedback", "Review & send"]} ariaLabel="Give feedback progress" />
+        <div className={step === 1 ? "mt-6 grid gap-4 sm:grid-cols-2" : "hidden"}>
           <Field label="Share feedback with"><SelectShell><select className="w-full bg-transparent outline-none" value={shareMode} onChange={(event) => { setShareMode(event.target.value); setNotice(""); }}><option value="individual">One person</option><option value="group">Selected group members</option></select></SelectShell></Field>
           <Field label="Feedback type"><SelectShell><select className="w-full bg-transparent outline-none" value={templateId} onChange={(event) => setTemplateId(event.target.value)}>{availableTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></SelectShell></Field>
         </div>
-        {shareMode === "individual" ? <Field className="mt-4" label="Who will receive feedback?"><SelectShell><select className="w-full bg-transparent outline-none" value={receiverId} onChange={(event) => setReceiverId(event.target.value)}>{recipients.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></SelectShell></Field> : <section className="mt-4 rounded-xl border border-line bg-slate-50 p-4"><p className="font-semibold text-slate-900">Select group members</p><p className="mt-1 text-sm text-muted">Each selected person gets their own private copy. They cannot see feedback shared with other people.</p><div className="mt-3 grid gap-2 sm:grid-cols-2">{recipients.map((user) => <label className="flex cursor-pointer items-center gap-3 rounded-lg bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm" key={user.id}><input className="h-4 w-4 accent-emerald-700" type="checkbox" checked={receiverIds.includes(user.id)} onChange={() => setReceiverIds((ids) => ids.includes(user.id) ? ids.filter((id) => id !== user.id) : [...ids, user.id])} /><Avatar initials={initialsForName(user.name)} small /><span>{user.name}</span></label>)}</div></section>}
-        <Field className="mt-4" label="Feedback purpose"><SelectShell><select className="w-full bg-transparent outline-none" value={purpose} onChange={(event) => setPurpose(event.target.value)}><option value="growth">Development and growth</option><option value="project_improvement">Project improvement</option><option value="one_on_one">One-on-one discussion</option><option value="appraisal">Official performance/appraisal record</option></select></SelectShell></Field>
-        <section className="mt-6 grid gap-5">{questions.map((question, index) => <Field key={question.id} label={<span className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">{index + 1}</span><span>{question.questionText}</span></span>}><textarea className={`${fieldClass} min-h-28 resize-y leading-7`} value={answers[question.id]?.answer || ""} onChange={(event) => setAnswers((items) => ({ ...items, [question.id]: { ...(items[question.id] || {}), answer: event.target.value } }))} required /> <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600"><span className="font-semibold">Optional rating</span>{[1, 2, 3, 4, 5].map((rating) => <button key={rating} className={`h-8 w-8 rounded-full border font-bold ${answers[question.id]?.rating === rating ? "border-amber-400 bg-amber-400 text-white" : "border-slate-200 bg-white text-slate-600"}`} type="button" onClick={() => setAnswers((items) => ({ ...items, [question.id]: { ...(items[question.id] || {}), rating } }))}>{rating}</button>)}</div></Field>)}</section>
+        <div className={step === 1 ? "" : "hidden"}>
+          {shareMode === "individual" ? <Field className="mt-4" label="Who will receive feedback?"><SelectShell><select className="w-full bg-transparent outline-none" value={receiverId} onChange={(event) => setReceiverId(event.target.value)}>{recipients.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></SelectShell></Field> : <section className="mt-4 rounded-xl border border-line bg-slate-50 p-4"><p className="font-semibold text-slate-900">Select group members</p><p className="mt-1 text-sm text-muted">Each selected person gets their own private copy. They cannot see feedback shared with other people.</p><div className="mt-3 grid gap-2 sm:grid-cols-2">{recipients.map((user) => <label className="flex cursor-pointer items-center gap-3 rounded-lg bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm" key={user.id}><input className="h-4 w-4 accent-emerald-700" type="checkbox" checked={receiverIds.includes(user.id)} onChange={() => setReceiverIds((ids) => ids.includes(user.id) ? ids.filter((id) => id !== user.id) : [...ids, user.id])} /><Avatar initials={initialsForName(user.name)} small /><span>{user.name}</span></label>)}</div></section>}
+          <Field className="mt-4" label="Feedback purpose"><SelectShell><select className="w-full bg-transparent outline-none" value={purpose} onChange={(event) => setPurpose(event.target.value)}><option value="growth">Development and growth</option><option value="project_improvement">Project improvement</option><option value="one_on_one">One-on-one discussion</option><option value="appraisal">Official performance/appraisal record</option></select></SelectShell></Field>
+          <div className="mt-6 flex justify-end"><button className={primaryButton} type="button" onClick={() => continueToStep(2)}>Continue</button></div>
+        </div>
+        <section className={step === 2 ? "mt-6 grid gap-5" : "hidden"}>{questions.map((question, index) => <Field key={question.id} label={<span className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">{index + 1}</span><span>{question.questionText}</span></span>}><textarea className={`${fieldClass} min-h-28 resize-y leading-7`} value={answers[question.id]?.answer || ""} onChange={(event) => setAnswers((items) => ({ ...items, [question.id]: { ...(items[question.id] || {}), answer: event.target.value } }))} /> <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600"><span className="font-semibold">Optional rating</span>{[1, 2, 3, 4, 5].map((rating) => <button key={rating} className={`h-8 w-8 rounded-full border font-bold ${answers[question.id]?.rating === rating ? "border-amber-400 bg-amber-400 text-white" : "border-slate-200 bg-white text-slate-600"}`} type="button" onClick={() => setAnswers((items) => ({ ...items, [question.id]: { ...(items[question.id] || {}), rating } }))}>{rating}</button>)}</div></Field>)}<div className="flex justify-between gap-3"><button className={secondaryButton} type="button" onClick={() => setStep(1)}>Back</button><button className={primaryButton} type="button" onClick={() => continueToStep(3)}>Continue</button></div></section>
+        <section className={step === 3 ? "mt-6 grid gap-4" : "hidden"}><div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-4 text-sm text-blue-950"><p className="font-bold">Ready to share feedback</p><p className="mt-2"><strong>Feedback type:</strong> {selectedTemplate?.name || "—"}</p><p className="mt-1"><strong>Recipient{selectedPeople.length === 1 ? "" : "s"}:</strong> {selectedPeople.map((user) => user.name).join(", ") || "—"}</p><p className="mt-1"><strong>Purpose:</strong> {purpose.replaceAll("_", " ")}</p><p className="mt-3 text-blue-800">Each person receives a separate private copy. They will get an in-app and email notification.</p></div></section>
         {notice ? <p className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{notice}</p> : null}
-        <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-5"><button className={secondaryButton} type="button" onClick={onClose} disabled={isSubmitting}>Cancel</button><button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-60" type="submit" disabled={isSubmitting}><Send size={17} />{isSubmitting ? "Sharing…" : "Share feedback"}</button></div>
+        {step === 3 ? <div className="mt-6 flex justify-between gap-3 border-t border-slate-100 pt-5"><button className={secondaryButton} type="button" onClick={() => setStep(2)} disabled={isSubmitting}>Back</button><button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-60" type="submit" disabled={isSubmitting}><Send size={17} />{isSubmitting ? "Sharing…" : "Share feedback"}</button></div> : null}
       </form>
     </aside>
   );
