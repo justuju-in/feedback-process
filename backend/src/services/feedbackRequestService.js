@@ -130,17 +130,23 @@ export async function sendScheduledFeedbackReminders() {
     const isDueToday = !isOverdue && feedbackRequest.dueDate === new Date().toISOString().slice(0, 10);
     const notificationKind = isOverdue ? "overdue" : isDueToday ? "due-today" : "due-soon";
     const notificationKey = `${notificationKind}:${feedbackRequest.dueDate}`;
-    const notification = isOverdue
-      ? await sendFeedbackOverdueNotification(feedbackRequest)
-      : isDueToday
-        ? await sendFeedbackDueTodayNotification(feedbackRequest)
-        : await sendFeedbackDueSoonNotification(feedbackRequest);
+    // Reserve this reminder before sending it. The job runs every hour, and
+    // the unique database key ensures that a request can receive each kind of
+    // reminder only once for a given due date.
+    const recorded = await recordNotification(pool, feedbackRequest.id, notificationKey);
+    if (!recorded) continue;
+    try {
+      if (isOverdue) await sendFeedbackOverdueNotification(feedbackRequest);
+      else if (isDueToday) await sendFeedbackDueTodayNotification(feedbackRequest);
+      else await sendFeedbackDueSoonNotification(feedbackRequest);
+    } catch (error) {
+      console.error("Mattermost feedback reminder failed:", error.message);
+    }
     const reminderText = isOverdue
       ? `${feedbackRequest.templateName} feedback for ${feedbackRequest.receiverName} is overdue.`
       : isDueToday
         ? `${feedbackRequest.templateName} feedback for ${feedbackRequest.receiverName} is due today.`
         : `${feedbackRequest.templateName} feedback for ${feedbackRequest.receiverName} is due tomorrow.`;
-    let emailSent = false;
     try {
       await sendFeedbackEmail({
         email: feedbackRequest.giverEmail,
@@ -149,25 +155,18 @@ export async function sendScheduledFeedbackReminders() {
         message: reminderText,
         actionUrl: getPrimaryFrontendOrigin(),
       });
-      emailSent = true;
     } catch (error) {
       console.error("Feedback reminder email failed:", error.message);
     }
 
-    // Mattermost is optional when email is configured, but at least one
-    // delivery channel needs to succeed before this reminder is marked sent.
-    if (!notification?.sent && !emailSent) continue;
-    const recorded = await recordNotification(pool, feedbackRequest.id, notificationKey);
-    if (recorded) {
-      await notifyUser({
-        userId: feedbackRequest.giverId,
-        requestId: feedbackRequest.id,
-        type: isOverdue ? "feedback_overdue" : isDueToday ? "feedback_due_today" : "feedback_due_soon",
-        title: isOverdue ? "Feedback is overdue" : isDueToday ? "Feedback due today" : "Feedback due in 2 days",
-        message: reminderText,
-      });
-      result[isOverdue ? "overdue" : isDueToday ? "dueToday" : "dueSoon"] += 1;
-    }
+    await notifyUser({
+      userId: feedbackRequest.giverId,
+      requestId: feedbackRequest.id,
+      type: isOverdue ? "feedback_overdue" : isDueToday ? "feedback_due_today" : "feedback_due_soon",
+      title: isOverdue ? "Feedback is overdue" : isDueToday ? "Feedback due today" : "Feedback due in 2 days",
+      message: reminderText,
+    });
+    result[isOverdue ? "overdue" : isDueToday ? "dueToday" : "dueSoon"] += 1;
   }
   return result;
 }
