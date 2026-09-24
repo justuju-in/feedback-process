@@ -1,6 +1,18 @@
+import { getPrimaryFrontendOrigin } from "../config/frontendOrigin.js";
+
 function getMattermostUsername(name) {
   const username = name?.trim().split(/\s+/)[0]?.toLowerCase();
   return username ? username.replace(/[^a-zA-Z0-9._-]/g, "") : null;
+}
+
+function getFeedbackRequestLink(feedbackRequest) {
+  if (!feedbackRequest?.id) return null;
+  return `${getPrimaryFrontendOrigin().replace(/\/$/, "")}/?requestId=${encodeURIComponent(feedbackRequest.id)}`;
+}
+
+function addFeedbackRequestLink(message, feedbackRequest) {
+  const requestLink = getFeedbackRequestLink(feedbackRequest);
+  return requestLink ? `${message}\n\n[Open feedback request](${requestLink})` : message;
 }
 
 function getMattermostApiConfig() {
@@ -151,7 +163,10 @@ export async function sendFeedbackReportNotification(report, scRecipientEmails =
 }
 
 export async function sendFeedbackRequestNotification(feedbackRequest) {
-  const message = `**${feedbackRequest.requesterName}** requested **${feedbackRequest.templateName}** from you.`;
+  const message = addFeedbackRequestLink(
+    `**${feedbackRequest.requesterName}** requested **${feedbackRequest.templateName}** from you.`,
+    feedbackRequest,
+  );
   const directMessage = await sendPrivateMattermostMessage({
     email: feedbackRequest.giverEmail,
     text: message,
@@ -178,8 +193,11 @@ export async function sendFeedbackSubmittedNotification(feedbackRequest) {
   const notificationRecipientEmail = feedbackRequest.isDirect
     ? feedbackRequest.receiverEmail
     : feedbackRequest.requesterEmail;
-  const message = `**${feedbackRequest.isAnonymous ? "Anonymous feedback" : feedbackRequest.giverName}** was submitted for your ` +
-    `**${feedbackRequest.templateName}**. Open Feedback to read it.`;
+  const message = addFeedbackRequestLink(
+    `**${feedbackRequest.isAnonymous ? "Anonymous feedback" : feedbackRequest.giverName}** was submitted for your ` +
+      `**${feedbackRequest.templateName}**.`,
+    feedbackRequest,
+  );
   const directMessage = await sendPrivateMattermostMessage({
     email: notificationRecipientEmail,
     text: message,
@@ -198,8 +216,11 @@ export async function sendFeedbackSubmittedNotification(feedbackRequest) {
 }
 
 export async function sendFeedbackDueSoonNotification(feedbackRequest) {
-  const message = `Reminder: **${feedbackRequest.templateName}** feedback for ` +
-    `**${feedbackRequest.receiverName}** is due tomorrow (${feedbackRequest.dueDate}).`;
+  const message = addFeedbackRequestLink(
+    `Reminder: **${feedbackRequest.templateName}** feedback for ` +
+      `**${feedbackRequest.receiverName}** is due tomorrow (${feedbackRequest.dueDate}).`,
+    feedbackRequest,
+  );
   const directMessage = await sendPrivateMattermostMessage({
     email: feedbackRequest.giverEmail,
     text: message,
@@ -217,8 +238,11 @@ export async function sendFeedbackDueSoonNotification(feedbackRequest) {
 }
 
 export async function sendFeedbackDueTodayNotification(feedbackRequest) {
-  const message = `Reminder: **${feedbackRequest.templateName}** feedback for ` +
-    `**${feedbackRequest.receiverName}** is due today (${feedbackRequest.dueDate}).`;
+  const message = addFeedbackRequestLink(
+    `Reminder: **${feedbackRequest.templateName}** feedback for ` +
+      `**${feedbackRequest.receiverName}** is due today (${feedbackRequest.dueDate}).`,
+    feedbackRequest,
+  );
   const directMessage = await sendPrivateMattermostMessage({
     email: feedbackRequest.giverEmail,
     text: message,
@@ -237,8 +261,11 @@ export async function sendFeedbackDueTodayNotification(feedbackRequest) {
 
 export async function sendFeedbackDueDateChangedNotification(feedbackRequest) {
   const deadline = feedbackRequest.dueDate || "no due date";
-  const message = `**${feedbackRequest.requesterName}** changed the deadline for ` +
-    `**${feedbackRequest.templateName}** feedback to **${deadline}**.`;
+  const message = addFeedbackRequestLink(
+    `**${feedbackRequest.requesterName}** changed the deadline for ` +
+      `**${feedbackRequest.templateName}** feedback to **${deadline}**.`,
+    feedbackRequest,
+  );
   const directMessage = await sendPrivateMattermostMessage({
     email: feedbackRequest.giverEmail,
     text: message,
@@ -256,9 +283,12 @@ export async function sendFeedbackDueDateChangedNotification(feedbackRequest) {
 }
 
 export async function sendFeedbackOverdueNotification(feedbackRequest) {
-  const message = `**${feedbackRequest.templateName}** feedback for ` +
-    `**${feedbackRequest.receiverName}** is overdue (due ${feedbackRequest.dueDate}). ` +
-    "Please submit it or contact the requester.";
+  const message = addFeedbackRequestLink(
+    `**${feedbackRequest.templateName}** feedback for ` +
+      `**${feedbackRequest.receiverName}** is overdue (due ${feedbackRequest.dueDate}). ` +
+      "Please submit it or contact the requester.",
+    feedbackRequest,
+  );
   const directMessage = await sendPrivateMattermostMessage({
     email: feedbackRequest.giverEmail,
     text: message,

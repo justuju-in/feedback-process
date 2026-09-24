@@ -78,6 +78,7 @@ export default function Home() {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const latestRequestLoad = useRef(0);
+  const openedRequestFromLink = useRef(null);
 
   const currentUser = users.find((user) => user.id === currentUserId);
   const currentUserRole = String(currentUser?.role || "").toLowerCase();
@@ -265,6 +266,15 @@ export default function Home() {
       setError(requestError.message);
     }
   }
+
+  useEffect(() => {
+    const requestId = Number(new URLSearchParams(window.location.search).get("requestId"));
+    if (!currentUserId || !Number.isSafeInteger(requestId) || requestId < 1) return;
+    if (openedRequestFromLink.current === requestId) return;
+
+    openedRequestFromLink.current = requestId;
+    void openRequest(requestId);
+  }, [currentUserId]);
 
   async function submitAnswers(requestId, answers) {
     await api(`/feedback-requests/${requestId}/answers`, { method: "POST", body: JSON.stringify({ answers }) });
