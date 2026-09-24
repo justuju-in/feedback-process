@@ -1832,6 +1832,7 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
   const canAcknowledge = isReceiver && request.status === "submitted";
   const canCreateFollowUp = (isRequester || isReceiver) && ["acknowledged", "follow_up_needed"].includes(request.status);
   const feedbackWasShared = ["submitted", "acknowledged", "follow_up_needed", "closed"].includes(request.status);
+  const canReportFeedback = feedbackWasShared && isReceiver;
   const wasStopped = ["cancelled", "declined"].includes(request.status);
   const footerMessage = request.status === "cancelled"
     ? "This feedback request was cancelled."
@@ -1900,7 +1901,7 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
           </div>
           <div className="flex shrink-0 flex-wrap justify-end gap-2">
             {canModerate ? <button className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50" type="button" onClick={() => setIsModerationOpen(true)}>Record controls</button> : null}
-            {feedbackWasShared ? <button className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50" type="button" onClick={() => setIsReportOpen(true)}>Report feedback</button> : null}
+            {canReportFeedback ? <button className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50" type="button" onClick={() => setIsReportOpen(true)}>Report feedback</button> : null}
           </div>
         </div>
 

@@ -13,14 +13,10 @@ async function requireReportAccess(pool, requestId, userId) {
     `SELECT request.id, request.status
      FROM feedback_requests AS request
      WHERE request.id = ?
-       AND (request.requester_id = ? OR request.giver_id = ? OR request.receiver_id = ?
-         OR EXISTS (
-           SELECT 1 FROM feedback_request_viewers AS viewer
-           WHERE viewer.request_id = request.id AND viewer.user_id = ?
-         ))`,
-    [requestId, userId, userId, userId, userId],
+       AND request.receiver_id = ?`,
+    [requestId, userId],
   );
-  if (!request) throw new ServiceError(403, "You do not have access to this feedback request");
+  if (!request) throw new ServiceError(403, "Only the person who received this feedback can report it");
   if (!["submitted", "acknowledged", "closed"].includes(request.status)) {
     throw new ServiceError(409, "Feedback can be reported after it has been submitted");
   }
