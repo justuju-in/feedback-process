@@ -10,6 +10,12 @@ function getMattermostApiConfig() {
   return { baseUrl, token };
 }
 
+function hasMattermostBotSettings() {
+  return Boolean(
+    process.env.MATTERMOST_URL?.trim() || process.env.MATTERMOST_BOT_TOKEN?.trim(),
+  );
+}
+
 let botUserId;
 const userIdByEmail = new Map();
 
@@ -55,7 +61,14 @@ async function getMattermostUserIdByEmail(config, email) {
 
 async function sendPrivateMattermostMessage({ email, text }) {
   const config = getMattermostApiConfig();
-  if (!config) return null;
+  if (!config) {
+    // Once private delivery has been selected, never expose a notification in
+    // the old shared channel because a token was missing or misconfigured.
+    if (hasMattermostBotSettings()) {
+      throw new Error("Mattermost private bot settings are incomplete");
+    }
+    return null;
+  }
 
   const [botId, userId] = await Promise.all([
     getBotUserId(config),
