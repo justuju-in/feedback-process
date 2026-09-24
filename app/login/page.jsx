@@ -60,22 +60,23 @@ export default function LoginPage() {
 
   return (
     <main className="auth-shell">
-      <div className="w-full max-w-md">
-        <Link className="mx-auto mb-8 flex w-fit items-center gap-3" href="/">
-          <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white shadow-md">
+      <div className="w-full max-w-xl">
+        <Link className="mx-auto mb-7 flex w-fit items-center gap-4" href="/">
+          <span className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white shadow-lg ring-1 ring-slate-200">
             <img src="/justuju-logo.png" alt="Justuju" className="h-full w-full object-cover" />
           </span>
           <span>
-            <span className="block text-lg font-bold text-[#252d70]">Feedback</span>
-            <span className="block text-xs text-slate-500">Feedback Process</span>
+            <span className="block text-2xl font-bold tracking-tight text-slate-900">Feedback</span>
+            <span className="block text-base text-slate-500">Feedback Process</span>
           </span>
         </Link>
 
-        <section className="auth-card">
+        <section className="auth-card relative overflow-hidden border-slate-200 bg-gradient-to-b from-indigo-50/60 via-white to-white p-7 shadow-[0_28px_80px_rgba(37,45,112,0.18)] sm:p-10 xl:p-11">
+          <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-[#252d70] via-[#4c57a7] to-emerald-500" />
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#4c57a7]">
             Welcome back
           </p>
-          <h1 className="mt-3 text-3xl font-bold tracking-tight">Log in to your account</h1>
+          <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Log in to your account</h1>
           <p className="mt-3 text-base text-slate-600">
             Enter your email and password to continue.
           </p>
