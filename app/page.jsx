@@ -1014,6 +1014,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
       Number(request.requesterId) === Number(currentUserId)
       && Number(request.giverId) === Number(selectedGiverId)
       && Number(request.receiverId) === Number(receiverId)
+      && Number(request.templateId) === Number(templateId)
       && String(request.purpose || "") === String(purpose || "")
       && ["requested", "in_progress", "overdue", "submitted", "acknowledged", "follow_up_needed"].includes(request.status)
     )));
@@ -1021,7 +1022,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
     if (!giverIdsToRequest.length) {
       setNoticeTone("error");
       const duplicateNames = duplicateGiverIds.map((id) => possibleGivers.find((user) => user.id === id)?.name).filter(Boolean).join(", ");
-      setNotice(`An open request with this feedback purpose already exists for ${duplicateNames}. Complete/cancel it first, or choose a different purpose.`);
+      setNotice(`An open request with this feedback type and purpose already exists for ${duplicateNames}. Complete/cancel it first, or choose a different feedback type or purpose.`);
       return;
     }
     setIsSendingRequest(true);
@@ -1034,7 +1035,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
     if (result.ok) {
       if (duplicateGiverIds.length) {
         const duplicateNames = duplicateGiverIds.map((id) => possibleGivers.find((user) => user.id === id)?.name).filter(Boolean).join(", ");
-        window.alert(`Requests were sent to ${giverIdsToRequest.length} person${giverIdsToRequest.length === 1 ? "" : "s"}. ${duplicateNames} was skipped because an open request with the same purpose already exists.`);
+        window.alert(`Requests were sent to ${giverIdsToRequest.length} person${giverIdsToRequest.length === 1 ? "" : "s"}. ${duplicateNames} was skipped because an open request with the same feedback type and purpose already exists.`);
       }
       onClose();
       return;
@@ -1257,7 +1258,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
 
         <Field className={step === 2 ? "" : "hidden"} label="Due date (optional)">
           <input className={fieldClass} type="date" min={today} value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
-          <p className="text-sm font-normal text-muted">Changing the date does not allow a duplicate open request with the same feedback purpose.</p>
+          <p className="text-sm font-normal text-muted">Changing the date does not allow a duplicate open request with the same feedback type and purpose.</p>
         </Field>
 
         {step === 2 ? <div className="flex items-center justify-between gap-3"><button className={secondaryButton} type="button" onClick={() => setStep(1)}>Back</button><button className={primaryButton} type="button" onClick={() => continueToStep(3)}>Continue</button></div> : null}
