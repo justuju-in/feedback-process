@@ -59,13 +59,13 @@ export default function RegisterPage() {
   return (
     <main className="auth-shell bg-slate-50">
       <div className="w-full max-w-xl">
-          <Link className="mx-auto mb-8 flex w-fit items-center gap-3" href="/">
-            <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white shadow-md">
+          <Link className="mx-auto mb-6 flex w-fit items-center gap-3" href="/">
+            <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white shadow-md">
               <img src="/justuju-logo.png" alt="Justuju" className="h-full w-full object-cover" />
             </span>
             <span>
-              <span className="block text-lg font-bold text-slate-900">Feedback</span>
-              <span className="block text-xs text-slate-500">Feedback Process</span>
+              <span className="block text-xl font-bold tracking-tight text-slate-900">Feedback</span>
+              <span className="block text-sm text-slate-500">Feedback Process</span>
             </span>
           </Link>
 
