@@ -53,6 +53,18 @@ export default function ForgotPasswordPage() {
   </AuthPage>;
 }
 
-function AuthPage({ children }) { return <main className="auth-shell"><div className="w-full max-w-md"><Brand /><section className="auth-card">{children}</section></div></main>; }
+function AuthPage({ children }) {
+  return (
+    <main className="auth-shell">
+      <div className="w-full max-w-md">
+        <Brand />
+        <section className="auth-card relative overflow-hidden border-slate-200 bg-gradient-to-b from-indigo-50/60 via-white to-white p-7 shadow-[0_28px_80px_rgba(37,45,112,0.18)] sm:p-9">
+          <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-[#252d70] via-[#4c57a7] to-emerald-500" />
+          {children}
+        </section>
+      </div>
+    </main>
+  );
+}
 function Brand() { return <Link className="mx-auto mb-8 flex w-fit items-center gap-3" href="/login"><span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-white shadow-md"><img src="/justuju-logo.png" alt="Justuju" className="h-full w-full object-cover" /></span><span><b className="block text-lg text-[#252d70]">Feedback</b><span className="block text-xs text-slate-500">Feedback Process</span></span></Link>; }
 function Notice({ children, error=false }) { return <p className={`rounded-xl px-4 py-3 text-sm font-medium ${error ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-800"}`} role={error ? "alert" : "status"}>{children}</p>; }

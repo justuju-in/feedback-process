@@ -31,7 +31,8 @@ function ResetForm() {
     finally { setLoading(false); }
   }
 
-  return <section className="auth-card">
+  return <section className="auth-card relative overflow-hidden border-slate-200 bg-gradient-to-b from-indigo-50/60 via-white to-white p-7 shadow-[0_28px_80px_rgba(37,45,112,0.18)] sm:p-9">
+    <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-[#252d70] via-[#4c57a7] to-emerald-500" />
     <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#4c57a7]">Choose a new password</p>
     <h1 className="mt-3 text-3xl font-bold tracking-tight">Create new password</h1>
     <p className="mt-3 text-base text-slate-600">Use at least 8 characters, then log in with your new password.</p>
