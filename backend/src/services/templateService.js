@@ -6,38 +6,67 @@ const moderatorRoles = new Set(["admin"]);
 const builtInTemplates = [
   {
     name: "Learning Feedback",
-    description: "Feedback about learning progress, understanding, and improvement areas",
-    questions: ["What did the person learn well?", "Where can the person improve?", "What should the person practise next?"],
+    description: "Feedback about learning progress, understanding, and next steps",
+    questions: [
+      "What is this person doing well in their learning?",
+      "Which area should they focus on improving?",
+      "What practical step would help them improve next?",
+    ],
   },
   {
     name: "Project Completion Feedback",
     description: "Feedback after completing a project or task",
-    questions: ["What went well in the project?", "What challenges came during the project?", "What can be improved in the next project?"],
+    questions: [
+      "What went well in this project?",
+      "What challenge or issue could be improved next time?",
+      "What should we do differently in the next project?",
+    ],
   },
   {
     name: "Written Feedback",
     description: "Structured written feedback about work, behaviour, and next steps",
-    questions: ["What work or behaviour would you like to recognise?", "What could be improved?", "What is one practical next step?"],
+    questions: [
+      "What work or behaviour would you like to appreciate?",
+      "What could be improved?",
+      "What is one clear next step?",
+    ],
   },
   {
     name: "Peer Feedback",
     description: "Feedback from a colleague about collaboration and contribution",
-    questions: ["How did the person collaborate with others?", "What strengths did you observe?", "What would improve working together next time?"],
+    questions: [
+      "How did this person collaborate with others?",
+      "What strength did you notice in their work?",
+      "What would make working together even better?",
+    ],
   },
   {
     name: "Growth Feedback",
     description: "Feedback about professional growth, strengths, and development",
-    questions: ["What progress or growth have you observed?", "Which skill or area should the person focus on next?", "What support would help their growth?"],
+    description: "Feedback about professional growth, strengths, and development needs",
+    questions: [
+      "What progress or growth have you noticed?",
+      "Which skill should this person develop next?",
+      "What support or opportunity would help their growth?",
+    ],
   },
   {
     name: "One-on-One Feedback",
     description: "Feedback to support a focused one-on-one conversation",
-    questions: ["What would you like to discuss?", "What is going well?", "What support or next step would help?"],
+    questions: [
+      "What is going well right now?",
+      "What challenge or support do you need?",
+      "What is one goal or next step for the coming period?",
+    ],
   },
   {
     name: "Group Feedback",
     description: "Feedback about team or group collaboration and outcomes",
-    questions: ["What did the group do well?", "What challenge should the group address?", "What action should the group take next?"],
+    questions: [
+      "What did the group do well?",
+      "What challenge should the group improve?",
+      "What action should the group take next?",
+    ],
   },
 ];
 
@@ -90,13 +119,17 @@ export async function ensureBuiltInTemplates() {
         [template.name, template.description],
       ))[0].insertId;
 
+      await connection.execute(
+        "UPDATE feedback_templates SET description = ?, is_active = TRUE WHERE id = ?",
+        [template.description, templateId],
+      );
+
       for (const [index, question] of template.questions.entries()) {
         await connection.execute(
           `INSERT INTO template_questions (template_id, question_text, question_order)
-           SELECT ?, ?, ? WHERE NOT EXISTS (
-             SELECT 1 FROM template_questions WHERE template_id = ? AND question_order = ?
-           )`,
-          [templateId, question, index + 1, templateId, index + 1],
+           VALUES (?, ?, ?)
+           ON DUPLICATE KEY UPDATE question_text = VALUES(question_text)`,
+          [templateId, question, index + 1],
         );
       }
     }
