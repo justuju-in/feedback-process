@@ -1910,7 +1910,7 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
             {request.isAnonymous && !isGiver ? <p className="mt-3 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">Anonymous feedback · giver name hidden</p> : null}
           </div>
           <div className="flex shrink-0 flex-wrap justify-end gap-2">
-            {canModerate ? <button className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50" type="button" onClick={() => setIsModerationOpen(true)}>Record controls</button> : null}
+            {canModerate ? <button className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50" type="button" onClick={() => setIsModerationOpen(true)}>Admin record controls</button> : null}
             {canReportFeedback ? <button className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50" type="button" onClick={() => setIsReportOpen(true)}>Report feedback</button> : null}
           </div>
         </div>
@@ -2076,8 +2076,12 @@ function ModerateFeedbackModal({ request, onClose, onModerate }) {
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
       <form className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl" onSubmit={submit}>
-        <p className="text-lg font-bold text-slate-950">Record controls</p>
-        <p className="mt-2 text-sm text-slate-600">Only an admin can moderate this record. Every action and reason is kept in the audit trail.</p>
+        <p className="text-lg font-bold text-slate-950">Admin record controls</p>
+        <p className="mt-2 text-sm text-slate-600">Use this only to correct, hide, remove, or reopen an ordinary feedback record. It is not part of the SC-report process. Every action and reason is kept in the audit trail.</p>
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p><span className="font-semibold">Hide</span> removes the record from normal participant lists but keeps it in the system.</p>
+          <p className="mt-1"><span className="font-semibold">Remove</span> is for an exceptional administrative need; it does not permanently delete company data and keeps an audit record and reason.</p>
+        </div>
         <label className="mt-5 grid gap-2 text-sm font-semibold text-slate-800">Action
           <select className={fieldClass} value={action} onChange={(event) => setAction(event.target.value)}>
             {availableActions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
