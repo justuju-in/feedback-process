@@ -10,13 +10,16 @@ const reviewRoles = new Set(["sc"]);
 
 async function requireReportAccess(pool, requestId, userId) {
   const [[request]] = await pool.execute(
-    `SELECT request.id, request.status
+    `SELECT request.id, request.status, request.is_anonymous AS isAnonymous
      FROM feedback_requests AS request
      WHERE request.id = ?
        AND request.receiver_id = ?`,
     [requestId, userId],
   );
   if (!request) throw new ServiceError(403, "Only the person who received this feedback can report it");
+  if (!request.isAnonymous) {
+    throw new ServiceError(403, "SC Report is available only for anonymous feedback");
+  }
   if (!["submitted", "acknowledged", "closed"].includes(request.status)) {
     throw new ServiceError(409, "Feedback can be reported after it has been submitted");
   }

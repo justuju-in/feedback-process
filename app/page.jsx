@@ -1842,7 +1842,7 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
   const canAcknowledge = isReceiver && request.status === "submitted";
   const canCreateFollowUp = (isRequester || isReceiver) && ["acknowledged", "follow_up_needed"].includes(request.status);
   const feedbackWasShared = ["submitted", "acknowledged", "follow_up_needed", "closed"].includes(request.status);
-  const canReportFeedback = feedbackWasShared && isReceiver;
+  const canReportFeedback = feedbackWasShared && isReceiver && request.isAnonymous;
   const wasStopped = ["cancelled", "declined"].includes(request.status);
   const footerMessage = request.status === "cancelled"
     ? "This feedback request was cancelled."
@@ -2115,7 +2115,7 @@ function ReportFeedbackModal({ request, onClose, onReport }) {
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
       <form className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl" onSubmit={submitReport}>
         <p className="text-lg font-bold text-slate-950">Report feedback</p>
-        <p className="mt-2 text-sm text-slate-600">Use this only for harmful, abusive, discriminatory, or inappropriate feedback. Your report is private.</p>
+        <p className="mt-2 text-sm text-slate-600">Use this only for harmful anonymous feedback. Your report is private.</p>
         <label className="mt-5 grid gap-2 text-sm font-semibold text-slate-800">Reason
           <select className={fieldClass} value={reason} onChange={(event) => setReason(event.target.value)}>
             <option value="rude">Rude or disrespectful</option>
