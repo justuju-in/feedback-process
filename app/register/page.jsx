@@ -71,7 +71,8 @@ export default function RegisterPage() {
             </span>
           </Link>
 
-          <div className="auth-card relative xl:p-10">
+          <div className="auth-card relative overflow-hidden border-slate-200 bg-gradient-to-b from-indigo-50/60 via-white to-white p-7 shadow-[0_28px_80px_rgba(37,45,112,0.18)] sm:p-10 xl:p-11">
+            <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-[#252d70] via-[#4c57a7] to-emerald-500" />
             <p className="text-sm font-semibold uppercase tracking-[0.16em] text-emerald-700">Get started</p>
             <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Create your account</h2>
             <p className="mt-3 text-base text-slate-600">Enter your details to join your feedback workspace.</p>
