@@ -186,6 +186,21 @@ export async function runDueFeedbackSchedules() {
           [schedule.requester_id, schedule.giver_id, schedule.receiver_id, schedule.template_id, schedule.message, schedule.due_in_days, schedule.purpose, schedule.visibility],
         );
         requestId = inserted.insertId;
+        const [templateQuestions] = await connection.execute(
+          `SELECT id, question_text AS questionText, question_order AS questionOrder
+           FROM template_questions
+           WHERE template_id = ?
+           ORDER BY question_order, id`,
+          [schedule.template_id],
+        );
+        for (const question of templateQuestions) {
+          await connection.execute(
+            `INSERT INTO feedback_request_questions
+               (request_id, template_question_id, question_text, question_order)
+             VALUES (?, ?, ?, ?)`,
+            [requestId, question.id, question.questionText, question.questionOrder],
+          );
+        }
         const [viewers] = await connection.execute("SELECT user_id AS userId FROM feedback_schedule_viewers WHERE schedule_id = ?", [id]);
         for (const viewer of viewers) {
           await connection.execute("INSERT INTO feedback_request_viewers (request_id, user_id) VALUES (?, ?)", [requestId, viewer.userId]);

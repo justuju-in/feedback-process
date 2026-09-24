@@ -52,6 +52,27 @@ function validateAnswers(normalizedAnswers, questions, requireText) {
   }
 }
 
+async function getQuestionsForRequest(executor, requestId, templateId) {
+  const [snapshotQuestions] = await executor.execute(
+    `SELECT template_question_id AS id
+     FROM feedback_request_questions
+     WHERE request_id = ?
+     ORDER BY question_order, id`,
+    [requestId],
+  );
+  if (snapshotQuestions.length) return snapshotQuestions;
+
+  // Fallback for a request created before snapshots were introduced.
+  const [templateQuestions] = await executor.execute(
+    `SELECT id
+     FROM template_questions
+     WHERE template_id = ?
+     ORDER BY question_order, id`,
+    [templateId],
+  );
+  return templateQuestions;
+}
+
 export async function submitFeedbackAnswers(requestId, giverId, answers) {
   const pool = getDatabasePool();
   const connection = await pool.getConnection();
@@ -85,13 +106,7 @@ export async function submitFeedbackAnswers(requestId, giverId, answers) {
       );
     }
 
-    const [questions] = await connection.execute(
-      `SELECT id
-       FROM template_questions
-       WHERE template_id = ?
-       ORDER BY question_order, id`,
-      [request.templateId],
-    );
+    const questions = await getQuestionsForRequest(connection, requestId, request.templateId);
 
     const normalizedAnswers = normalizeAnswers(answers, questions);
     validateAnswers(normalizedAnswers, questions, true);
@@ -170,7 +185,7 @@ export async function saveFeedbackDraft(requestId, giverId, answers) {
   if (!request) throw new ServiceError(404, "Feedback request not found");
   if (request.giverId !== giverId) throw new ServiceError(403, "Only the selected feedback giver can save a draft");
   if (!["requested", "in_progress", "overdue"].includes(request.status)) throw new ServiceError(409, "A draft can only be saved for an active request");
-  const [questions] = await pool.execute("SELECT id FROM template_questions WHERE template_id = ? ORDER BY question_order, id", [request.templateId]);
+  const questions = await getQuestionsForRequest(pool, requestId, request.templateId);
   const normalizedAnswers = normalizeAnswers(answers, questions);
   validateAnswers(normalizedAnswers, questions, false);
   await pool.execute(

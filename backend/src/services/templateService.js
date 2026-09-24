@@ -11,6 +11,7 @@ const builtInTemplates = [
       "What is this person doing well in their learning?",
       "Which area should they focus on improving?",
       "What practical step would help them improve next?",
+      "Can you share one example to make this feedback clear?",
     ],
   },
   {
@@ -20,6 +21,7 @@ const builtInTemplates = [
       "What went well in this project?",
       "What challenge or issue could be improved next time?",
       "What should we do differently in the next project?",
+      "How well did the person communicate and collaborate during the project?",
     ],
   },
   {
@@ -29,6 +31,7 @@ const builtInTemplates = [
       "What work or behaviour would you like to appreciate?",
       "What could be improved?",
       "What is one clear next step?",
+      "Can you share one example to make the feedback clear?",
     ],
   },
   {
@@ -38,6 +41,7 @@ const builtInTemplates = [
       "How did this person collaborate with others?",
       "What strength did you notice in their work?",
       "What would make working together even better?",
+      "How reliable and responsive was this person?",
     ],
   },
   {
@@ -48,6 +52,7 @@ const builtInTemplates = [
       "What progress or growth have you noticed?",
       "Which skill should this person develop next?",
       "What support or opportunity would help their growth?",
+      "Which strength should this person continue building on?",
     ],
   },
   {
@@ -57,6 +62,7 @@ const builtInTemplates = [
       "What is going well right now?",
       "What challenge or support do you need?",
       "What is one goal or next step for the coming period?",
+      "What should we continue, stop, or start doing?",
     ],
   },
   {
@@ -66,6 +72,7 @@ const builtInTemplates = [
       "What did the group do well?",
       "What challenge should the group improve?",
       "What action should the group take next?",
+      "Did everyone get a fair chance to contribute?",
     ],
   },
 ];

@@ -269,6 +269,21 @@ export async function createFeedbackRequest({
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'requested')`,
       [requesterId, giverId, receiverId, templateId, message || null, normalizedDueDate, normalizedPurpose, normalizedVisibility, normalizedIsAnonymous],
     );
+    const [templateQuestions] = await connection.execute(
+      `SELECT id, question_text AS questionText, question_order AS questionOrder
+       FROM template_questions
+       WHERE template_id = ?
+       ORDER BY question_order, id`,
+      [templateId],
+    );
+    for (const question of templateQuestions) {
+      await connection.execute(
+        `INSERT INTO feedback_request_questions
+           (request_id, template_question_id, question_text, question_order)
+         VALUES (?, ?, ?, ?)`,
+        [result.insertId, question.id, question.questionText, question.questionOrder],
+      );
+    }
     for (const viewerId of normalizedViewerIds) {
       await connection.execute(
         "INSERT INTO feedback_request_viewers (request_id, user_id) VALUES (?, ?)",
@@ -476,15 +491,14 @@ export async function getFeedbackRequestById(requestId) {
     [requestId],
   );
 
-  // Questions belong to the feedback request's selected template. Returning
-  // them with the request detail prevents the client from accidentally loading
-  // questions from a different template while the request is being refreshed.
+  // Each request keeps the question set that existed at creation time.
+  // This lets templates improve without changing an open or past request.
   const [questions] = await pool.execute(
-    `SELECT id, question_text AS questionText, question_order AS questionOrder
-     FROM template_questions
-     WHERE template_id = ?
+    `SELECT template_question_id AS id, question_text AS questionText, question_order AS questionOrder
+     FROM feedback_request_questions
+     WHERE request_id = ?
      ORDER BY question_order, id`,
-    [request.templateId],
+    [requestId],
   );
 
   const [answers] = await pool.execute(

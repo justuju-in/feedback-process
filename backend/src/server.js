@@ -84,6 +84,37 @@ async function startServer() {
     )`,
   );
 
+  // A request keeps the exact questions that were selected when it was created.
+  // Later template improvements must apply only to future requests.
+  await getDatabasePool().execute(
+    `CREATE TABLE IF NOT EXISTS feedback_request_questions (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      request_id INT NOT NULL,
+      template_question_id INT NOT NULL,
+      question_text TEXT NOT NULL,
+      question_order INT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_request_question (request_id, template_question_id),
+      INDEX idx_request_question_order (request_id, question_order),
+      FOREIGN KEY (request_id) REFERENCES feedback_requests(id),
+      FOREIGN KEY (template_question_id) REFERENCES template_questions(id)
+    )`,
+  );
+
+  // Requests created before question snapshots were introduced keep their
+  // already-existing questions. This runs before built-in templates are updated.
+  await getDatabasePool().execute(
+    `INSERT INTO feedback_request_questions
+       (request_id, template_question_id, question_text, question_order)
+     SELECT request.id, question.id, question.question_text, question.question_order
+     FROM feedback_requests AS request
+     JOIN template_questions AS question ON question.template_id = request.template_id
+     WHERE NOT EXISTS (
+       SELECT 1 FROM feedback_request_questions AS snapshot
+       WHERE snapshot.request_id = request.id
+     )`,
+  );
+
   const [[ratingColumn]] = await getDatabasePool().execute(
     `SELECT COUNT(*) AS count FROM information_schema.columns
      WHERE table_schema = DATABASE() AND table_name = 'feedback_answers' AND column_name = 'rating'`,
