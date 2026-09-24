@@ -11,6 +11,7 @@ import { sendFeedbackEmail } from "../integrations/email.js";
 import { ServiceError } from "./serviceError.js";
 import { createInAppNotification } from "./notificationService.js";
 import { writeFeedbackAuditEvent } from "./feedbackAuditService.js";
+import { validateRespectfulFeedbackText } from "./feedbackContentPolicy.js";
 
 const requestSelect = `
   SELECT
@@ -642,6 +643,7 @@ export async function createFeedbackDiscussion({ requestId, actorId, type, messa
   const normalizedMessage = typeof message === "string" ? message.trim() : "";
   if (normalizedMessage.length < 3) throw new ServiceError(400, "Message must be at least 3 characters");
   if (normalizedMessage.length > 1000) throw new ServiceError(400, "Message must be 1000 characters or less");
+  validateRespectfulFeedbackText(normalizedMessage);
 
   const pool = getDatabasePool();
   const connection = await pool.getConnection();

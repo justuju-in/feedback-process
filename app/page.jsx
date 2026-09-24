@@ -925,6 +925,7 @@ function GiveFeedbackModal({ currentUser, users, templates, onClose, onSubmit })
   const [templateId, setTemplateId] = useState("");
   const [purpose, setPurpose] = useState("growth");
   const [isAnonymous, setIsAnonymous] = useState(false);
+  const [hasAcceptedAnonymousPolicy, setHasAcceptedAnonymousPolicy] = useState(false);
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
   const [notice, setNotice] = useState("");
@@ -962,6 +963,7 @@ function GiveFeedbackModal({ currentUser, users, templates, onClose, onSubmit })
     const selectedReceiverIds = shareMode === "group" ? receiverIds : [Number(receiverId)];
     if (!selectedReceiverIds.length || !templateId || !questions.length) return setNotice("Choose at least one person and a feedback type with questions.");
     if (questions.some((question) => !(answers[question.id]?.answer || "").trim())) return setNotice("Please answer every question before sharing feedback.");
+    if (isAnonymous && !hasAcceptedAnonymousPolicy) return setNotice("Please confirm the anonymous feedback rules before sharing.");
     setIsSubmitting(true);
     setNotice("");
     const result = await onSubmit({
@@ -984,6 +986,10 @@ function GiveFeedbackModal({ currentUser, users, templates, onClose, onSubmit })
       setNotice("Please answer every question before continuing.");
       return;
     }
+    if (nextStep === 3 && isAnonymous && !hasAcceptedAnonymousPolicy) {
+      setNotice("Please confirm the anonymous feedback rules before continuing.");
+      return;
+    }
     setStep(nextStep);
   }
 
@@ -999,9 +1005,19 @@ function GiveFeedbackModal({ currentUser, users, templates, onClose, onSubmit })
           <Field label="Share feedback with"><SelectShell><select className="w-full bg-transparent outline-none" value={shareMode} onChange={(event) => { setShareMode(event.target.value); setNotice(""); }}><option value="individual">One person</option><option value="group">Selected group members</option></select></SelectShell></Field>
           <Field label="Feedback type"><SelectShell><select className="w-full bg-transparent outline-none" value={templateId} onChange={(event) => setTemplateId(event.target.value)}>{availableTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></SelectShell></Field>
           <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/50 px-4 py-3.5">
-            <input className="mt-1 h-4 w-4 accent-amber-600" type="checkbox" checked={isAnonymous} onChange={(event) => setIsAnonymous(event.target.checked)} />
+            <input className="mt-1 h-4 w-4 accent-amber-600" type="checkbox" checked={isAnonymous} onChange={(event) => { setIsAnonymous(event.target.checked); if (!event.target.checked) setHasAcceptedAnonymousPolicy(false); }} />
             <span><span className="block font-bold text-slate-900">Send anonymous feedback</span><span className="mt-1 block text-sm text-slate-600">Your name will be hidden from the person receiving this feedback.</span></span>
           </label>
+          {isAnonymous ? <section className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-slate-700">
+            <p className="font-bold text-slate-900">Anonymous feedback rules</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              <li>Write about work, behaviour, impact, and a helpful next step.</li>
+              <li>Do not use abusive, threatening, discriminatory, or humiliating language.</li>
+              <li>Do not include private personal, health, family, caste, religion, gender, or appearance details.</li>
+              <li>For harassment, bullying, discrimination, or another serious concern, use <strong>Report feedback</strong> instead.</li>
+            </ul>
+            <label className="mt-3 flex cursor-pointer items-start gap-2 font-semibold text-slate-900"><input className="mt-1 h-4 w-4 accent-amber-600" type="checkbox" checked={hasAcceptedAnonymousPolicy} onChange={(event) => setHasAcceptedAnonymousPolicy(event.target.checked)} /> I understand and will follow these rules.</label>
+          </section> : null}
         </div>
         <div className={step === 1 ? "" : "hidden"}>
           {shareMode === "individual" ? <Field className="mt-4" label="Who will receive feedback?"><SelectShell><select className="w-full bg-transparent outline-none" value={receiverId} onChange={(event) => setReceiverId(event.target.value)}>{recipients.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></SelectShell></Field> : <section className="mt-4 rounded-xl border border-line bg-slate-50 p-4"><p className="font-semibold text-slate-900">Select group members</p><p className="mt-1 text-sm text-muted">Each selected person gets their own private copy. They cannot see feedback shared with other people.</p><div className="mt-3 grid gap-2 sm:grid-cols-2">{recipients.map((user) => <label className="flex cursor-pointer items-center gap-3 rounded-lg bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm" key={user.id}><input className="h-4 w-4 accent-emerald-700" type="checkbox" checked={receiverIds.includes(user.id)} onChange={() => setReceiverIds((ids) => ids.includes(user.id) ? ids.filter((id) => id !== user.id) : [...ids, user.id])} /><Avatar initials={initialsForName(user.name)} small /><span>{user.name}</span></label>)}</div></section>}
@@ -1009,7 +1025,7 @@ function GiveFeedbackModal({ currentUser, users, templates, onClose, onSubmit })
           <div className="mt-6 flex justify-end"><button className={primaryButton} type="button" onClick={() => continueToStep(2)}>Continue</button></div>
         </div>
         <section className={step === 2 ? "mt-6 grid gap-5" : "hidden"}>{questions.map((question, index) => <Field key={question.id} label={<span className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">{index + 1}</span><span>{question.questionText}</span></span>}><textarea className={`${fieldClass} min-h-28 resize-y leading-7`} value={answers[question.id]?.answer || ""} onChange={(event) => setAnswers((items) => ({ ...items, [question.id]: { ...(items[question.id] || {}), answer: event.target.value } }))} /> <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600"><span className="font-semibold">Optional rating</span>{[1, 2, 3, 4, 5].map((rating) => <button key={rating} className={`h-8 w-8 rounded-full border font-bold ${answers[question.id]?.rating === rating ? "border-amber-400 bg-amber-400 text-white" : "border-slate-200 bg-white text-slate-600"}`} type="button" onClick={() => setAnswers((items) => ({ ...items, [question.id]: { ...(items[question.id] || {}), rating } }))}>{rating}</button>)}</div></Field>)}<div className="flex justify-between gap-3"><button className={secondaryButton} type="button" onClick={() => setStep(1)}>Back</button><button className={primaryButton} type="button" onClick={() => continueToStep(3)}>Continue</button></div></section>
-        <section className={step === 3 ? "mt-6 grid gap-4" : "hidden"}><div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-4 text-sm text-blue-950"><p className="font-bold">Ready to share feedback</p><p className="mt-2"><strong>Feedback type:</strong> {selectedTemplate?.name || "—"}</p><p className="mt-1"><strong>Recipient{selectedPeople.length === 1 ? "" : "s"}:</strong> {selectedPeople.map((user) => user.name).join(", ") || "—"}</p><p className="mt-1"><strong>Purpose:</strong> {purpose.replaceAll("_", " ")}</p>{isAnonymous ? <p className="mt-1"><strong>Privacy:</strong> Your name will be hidden</p> : null}<p className="mt-3 text-blue-800">Each person receives a separate private copy. They will get an in-app and email notification.</p></div></section>
+        <section className={step === 3 ? "mt-6 grid gap-4" : "hidden"}><div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-4 text-sm text-blue-950"><p className="font-bold">Ready to share feedback</p><p className="mt-2"><strong>Feedback type:</strong> {selectedTemplate?.name || "—"}</p><p className="mt-1"><strong>Recipient{selectedPeople.length === 1 ? "" : "s"}:</strong> {selectedPeople.map((user) => user.name).join(", ") || "—"}</p><p className="mt-1"><strong>Purpose:</strong> {purpose.replaceAll("_", " ")}</p>{isAnonymous ? <p className="mt-1"><strong>Privacy:</strong> Your name will be hidden. Anonymous feedback rules confirmed.</p> : null}<p className="mt-3 text-blue-800">Each person receives a separate private copy. They will get an in-app and email notification.</p></div></section>
         {notice ? <p className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{notice}</p> : null}
         {step === 3 ? <div className="mt-6 flex justify-between gap-3 border-t border-slate-100 pt-5"><button className={secondaryButton} type="button" onClick={() => setStep(2)} disabled={isSubmitting}>Back</button><button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-60" type="submit" disabled={isSubmitting}><Send size={17} />{isSubmitting ? "Sharing…" : "Share feedback"}</button></div> : null}
       </form>

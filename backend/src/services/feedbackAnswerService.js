@@ -6,6 +6,7 @@ import { getFeedbackRequestById } from "./feedbackRequestService.js";
 import { ServiceError } from "./serviceError.js";
 import { createInAppNotification } from "./notificationService.js";
 import { writeFeedbackAuditEvent } from "./feedbackAuditService.js";
+import { validateRespectfulFeedbackText } from "./feedbackContentPolicy.js";
 
 function normalizeAnswers(answers, questions) {
   if (!Array.isArray(answers) || answers.length === 0) {
@@ -47,6 +48,7 @@ function validateAnswers(normalizedAnswers, questions, requireText) {
     if (!validQuestionIds.has(item.questionId)) throw new ServiceError(400, "Every answer must reference a question from the selected template");
     if (usedQuestionIds.has(item.questionId)) throw new ServiceError(400, "A question can only be answered once");
     if (requireText && !item.answer) throw new ServiceError(400, "Answer text cannot be empty");
+    validateRespectfulFeedbackText(item.answer);
     if (item.rating !== null && (!Number.isInteger(item.rating) || item.rating < 1 || item.rating > 5)) throw new ServiceError(400, "Rating must be between 1 and 5");
     usedQuestionIds.add(item.questionId);
   }
