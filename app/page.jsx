@@ -979,7 +979,7 @@ function GiveFeedbackModal({ currentUser, users, templates, onClose, onSubmit })
           <button className="rounded-lg p-2 text-muted hover:bg-slate-100" type="button" aria-label="Close give feedback form" onClick={onClose}>×</button>
         </div>
         <RequestProgress step={step} steps={["Person", "Feedback", "Review & send"]} ariaLabel="Give feedback progress" />
-        <div className={step === 1 ? "mt-6 grid gap-4 sm:grid-cols-2" : "hidden"}>
+        <div className={step === 1 ? "mt-6 grid gap-4" : "hidden"}>
           <Field label="Share feedback with"><SelectShell><select className="w-full bg-transparent outline-none" value={shareMode} onChange={(event) => { setShareMode(event.target.value); setNotice(""); }}><option value="individual">One person</option><option value="group">Selected group members</option></select></SelectShell></Field>
           <Field label="Feedback type"><SelectShell><select className="w-full bg-transparent outline-none" value={templateId} onChange={(event) => setTemplateId(event.target.value)}>{availableTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></SelectShell></Field>
         </div>
