@@ -821,9 +821,15 @@ function SCReportReview({ reports, onReview, onOpenRequest }) {
 }
 
 function AnalyticsDashboard({ analytics }) {
+  const [templatePage, setTemplatePage] = useState(1);
   if (!analytics) return <section className="mt-7 rounded-2xl border border-line/80 bg-white p-8 text-center text-muted shadow-[0_12px_36px_rgba(15,23,42,0.07)]">Loading team analytics…</section>;
   const summary = analytics.summary || {};
   const completionRate = Number(summary.totalRequests) ? Math.round((Number(summary.completedRequests) / Number(summary.totalRequests)) * 100) : 0;
+  const templateItems = analytics.byTemplate || [];
+  const templatesPerPage = 5;
+  const templatePageCount = Math.max(1, Math.ceil(templateItems.length / templatesPerPage));
+  const currentTemplatePage = Math.min(templatePage, templatePageCount);
+  const visibleTemplateItems = templateItems.slice((currentTemplatePage - 1) * templatesPerPage, currentTemplatePage * templatesPerPage);
   return <section className="mt-7 grid gap-5">
     <p className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">These are anonymous team totals only. Individual feedback answers and names are not shown here.</p>
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -833,7 +839,7 @@ function AnalyticsDashboard({ analytics }) {
       <StatCard icon={<BarChart3 size={24} />} tone="violet" label="Average response" value={summary.averageResponseHours == null ? "—" : `${Math.round(summary.averageResponseHours)}h`} helper="From request to submitted feedback" />
     </div>
     <div className="grid gap-5 lg:grid-cols-2">
-      <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><h2 className="text-lg font-bold text-slate-950">Requests by feedback type</h2><div className="mt-4 grid gap-3">{(analytics.byTemplate || []).length ? analytics.byTemplate.map((item) => <div className="flex items-center justify-between gap-4 rounded-xl bg-slate-50 px-4 py-3" key={item.templateName}><div><p className="font-semibold text-slate-900">{item.templateName}</p><p className="mt-1 text-sm text-muted">{item.completedRequests} completed</p></div><span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-bold text-blue-700">{item.requestCount}</span></div>) : <p className="text-sm text-muted">No feedback requests yet.</p>}</div></article>
+      <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><h2 className="text-lg font-bold text-slate-950">Requests by feedback type</h2><div className="mt-4 grid gap-3">{templateItems.length ? visibleTemplateItems.map((item) => <div className="flex items-center justify-between gap-4 rounded-xl bg-slate-50 px-4 py-3" key={item.templateName}><div><p className="font-semibold text-slate-900">{item.templateName}</p><p className="mt-1 text-sm text-muted">{item.completedRequests} completed</p></div><span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-bold text-blue-700">{item.requestCount}</span></div>) : <p className="text-sm text-muted">No feedback requests yet.</p>}</div>{templateItems.length > templatesPerPage ? <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-4"><p className="text-sm text-muted">Showing {(currentTemplatePage - 1) * templatesPerPage + 1}–{Math.min(currentTemplatePage * templatesPerPage, templateItems.length)} of {templateItems.length}</p><div className="flex gap-2"><button className={secondaryButton} type="button" disabled={currentTemplatePage === 1} onClick={() => setTemplatePage((page) => Math.max(1, page - 1))}>Previous</button><button className={secondaryButton} type="button" disabled={currentTemplatePage === templatePageCount} onClick={() => setTemplatePage((page) => Math.min(templatePageCount, page + 1))}>Next</button></div></div> : null}</article>
       <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><h2 className="text-lg font-bold text-slate-950">Requests by status</h2><div className="mt-4 grid gap-3">{(analytics.byStatus || []).length ? analytics.byStatus.map((item) => <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3" key={item.status}><span className="font-semibold capitalize text-slate-900">{String(item.status).replaceAll("_", " ")}</span><span className="rounded-full bg-slate-200 px-3 py-1 text-sm font-bold text-slate-700">{item.requestCount}</span></div>) : <p className="text-sm text-muted">No feedback requests yet.</p>}</div></article>
     </div>
   </section>;
