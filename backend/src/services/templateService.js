@@ -125,12 +125,25 @@ export async function ensureBuiltInTemplates() {
       );
 
       for (const [index, question] of template.questions.entries()) {
-        await connection.execute(
-          `INSERT INTO template_questions (template_id, question_text, question_order)
-           VALUES (?, ?, ?)
-           ON DUPLICATE KEY UPDATE question_text = VALUES(question_text)`,
-          [templateId, question, index + 1],
+        const [[existingQuestion]] = await connection.execute(
+          `SELECT id FROM template_questions
+           WHERE template_id = ? AND question_order = ?
+           ORDER BY id
+           LIMIT 1`,
+          [templateId, index + 1],
         );
+
+        if (existingQuestion) {
+          await connection.execute(
+            "UPDATE template_questions SET question_text = ? WHERE id = ?",
+            [question, existingQuestion.id],
+          );
+        } else {
+          await connection.execute(
+            "INSERT INTO template_questions (template_id, question_text, question_order) VALUES (?, ?, ?)",
+            [templateId, question, index + 1],
+          );
+        }
       }
     }
     await connection.commit();
