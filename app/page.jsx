@@ -924,6 +924,7 @@ function GiveFeedbackModal({ currentUser, users, templates, onClose, onSubmit })
   const [receiverIds, setReceiverIds] = useState([]);
   const [templateId, setTemplateId] = useState("");
   const [purpose, setPurpose] = useState("growth");
+  const [isAnonymous, setIsAnonymous] = useState(false);
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
   const [notice, setNotice] = useState("");
@@ -964,7 +965,7 @@ function GiveFeedbackModal({ currentUser, users, templates, onClose, onSubmit })
     setIsSubmitting(true);
     setNotice("");
     const result = await onSubmit({
-      receiverIds: selectedReceiverIds, templateId: Number(templateId), purpose,
+      receiverIds: selectedReceiverIds, templateId: Number(templateId), purpose, isAnonymous,
       answers: questions.map((question) => ({ questionId: question.id, answer: answers[question.id]?.answer || "", rating: answers[question.id]?.rating || null })),
     });
     setIsSubmitting(false);
@@ -997,6 +998,10 @@ function GiveFeedbackModal({ currentUser, users, templates, onClose, onSubmit })
         <div className={step === 1 ? "mt-6 grid gap-4" : "hidden"}>
           <Field label="Share feedback with"><SelectShell><select className="w-full bg-transparent outline-none" value={shareMode} onChange={(event) => { setShareMode(event.target.value); setNotice(""); }}><option value="individual">One person</option><option value="group">Selected group members</option></select></SelectShell></Field>
           <Field label="Feedback type"><SelectShell><select className="w-full bg-transparent outline-none" value={templateId} onChange={(event) => setTemplateId(event.target.value)}>{availableTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></SelectShell></Field>
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/50 px-4 py-3.5">
+            <input className="mt-1 h-4 w-4 accent-amber-600" type="checkbox" checked={isAnonymous} onChange={(event) => setIsAnonymous(event.target.checked)} />
+            <span><span className="block font-bold text-slate-900">Send anonymous feedback</span><span className="mt-1 block text-sm text-slate-600">Your name will be hidden from the person receiving this feedback.</span></span>
+          </label>
         </div>
         <div className={step === 1 ? "" : "hidden"}>
           {shareMode === "individual" ? <Field className="mt-4" label="Who will receive feedback?"><SelectShell><select className="w-full bg-transparent outline-none" value={receiverId} onChange={(event) => setReceiverId(event.target.value)}>{recipients.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></SelectShell></Field> : <section className="mt-4 rounded-xl border border-line bg-slate-50 p-4"><p className="font-semibold text-slate-900">Select group members</p><p className="mt-1 text-sm text-muted">Each selected person gets their own private copy. They cannot see feedback shared with other people.</p><div className="mt-3 grid gap-2 sm:grid-cols-2">{recipients.map((user) => <label className="flex cursor-pointer items-center gap-3 rounded-lg bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm" key={user.id}><input className="h-4 w-4 accent-emerald-700" type="checkbox" checked={receiverIds.includes(user.id)} onChange={() => setReceiverIds((ids) => ids.includes(user.id) ? ids.filter((id) => id !== user.id) : [...ids, user.id])} /><Avatar initials={initialsForName(user.name)} small /><span>{user.name}</span></label>)}</div></section>}
@@ -1004,7 +1009,7 @@ function GiveFeedbackModal({ currentUser, users, templates, onClose, onSubmit })
           <div className="mt-6 flex justify-end"><button className={primaryButton} type="button" onClick={() => continueToStep(2)}>Continue</button></div>
         </div>
         <section className={step === 2 ? "mt-6 grid gap-5" : "hidden"}>{questions.map((question, index) => <Field key={question.id} label={<span className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">{index + 1}</span><span>{question.questionText}</span></span>}><textarea className={`${fieldClass} min-h-28 resize-y leading-7`} value={answers[question.id]?.answer || ""} onChange={(event) => setAnswers((items) => ({ ...items, [question.id]: { ...(items[question.id] || {}), answer: event.target.value } }))} /> <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600"><span className="font-semibold">Optional rating</span>{[1, 2, 3, 4, 5].map((rating) => <button key={rating} className={`h-8 w-8 rounded-full border font-bold ${answers[question.id]?.rating === rating ? "border-amber-400 bg-amber-400 text-white" : "border-slate-200 bg-white text-slate-600"}`} type="button" onClick={() => setAnswers((items) => ({ ...items, [question.id]: { ...(items[question.id] || {}), rating } }))}>{rating}</button>)}</div></Field>)}<div className="flex justify-between gap-3"><button className={secondaryButton} type="button" onClick={() => setStep(1)}>Back</button><button className={primaryButton} type="button" onClick={() => continueToStep(3)}>Continue</button></div></section>
-        <section className={step === 3 ? "mt-6 grid gap-4" : "hidden"}><div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-4 text-sm text-blue-950"><p className="font-bold">Ready to share feedback</p><p className="mt-2"><strong>Feedback type:</strong> {selectedTemplate?.name || "—"}</p><p className="mt-1"><strong>Recipient{selectedPeople.length === 1 ? "" : "s"}:</strong> {selectedPeople.map((user) => user.name).join(", ") || "—"}</p><p className="mt-1"><strong>Purpose:</strong> {purpose.replaceAll("_", " ")}</p><p className="mt-3 text-blue-800">Each person receives a separate private copy. They will get an in-app and email notification.</p></div></section>
+        <section className={step === 3 ? "mt-6 grid gap-4" : "hidden"}><div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-4 text-sm text-blue-950"><p className="font-bold">Ready to share feedback</p><p className="mt-2"><strong>Feedback type:</strong> {selectedTemplate?.name || "—"}</p><p className="mt-1"><strong>Recipient{selectedPeople.length === 1 ? "" : "s"}:</strong> {selectedPeople.map((user) => user.name).join(", ") || "—"}</p><p className="mt-1"><strong>Purpose:</strong> {purpose.replaceAll("_", " ")}</p>{isAnonymous ? <p className="mt-1"><strong>Privacy:</strong> Your name will be hidden</p> : null}<p className="mt-3 text-blue-800">Each person receives a separate private copy. They will get an in-app and email notification.</p></div></section>
         {notice ? <p className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{notice}</p> : null}
         {step === 3 ? <div className="mt-6 flex justify-between gap-3 border-t border-slate-100 pt-5"><button className={secondaryButton} type="button" onClick={() => setStep(2)} disabled={isSubmitting}>Back</button><button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-60" type="submit" disabled={isSubmitting}><Send size={17} />{isSubmitting ? "Sharing…" : "Share feedback"}</button></div> : null}
       </form>
@@ -1025,7 +1030,6 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
   const [dueDate, setDueDate] = useState("");
   const [purpose, setPurpose] = useState("growth");
   const [visibility, setVisibility] = useState("private");
-  const [isAnonymous, setIsAnonymous] = useState(false);
   const [viewerIds, setViewerIds] = useState([]);
   const [showMoreOptions, setShowMoreOptions] = useState(false);
   const [isCustomTemplateOpen, setIsCustomTemplateOpen] = useState(false);
@@ -1108,7 +1112,6 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
     setDueDate("");
     setViewerIds([]);
     setVisibility("private");
-    setIsAnonymous(false);
     setSavedTemplateName("");
     setMessage(`Replacement request after ${replacementRequest.giverName} declined.`);
     setNotice(null);
@@ -1150,7 +1153,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
     setIsSendingRequest(true);
     let result = { ok: true };
     for (const selectedGiverId of giverIdsToRequest) {
-      result = await onCreate({ giverId: selectedGiverId, receiverId: Number(receiverId), templateId: Number(templateId), message, dueDate, purpose, visibility, viewerIds, isAnonymous });
+      result = await onCreate({ giverId: selectedGiverId, receiverId: Number(receiverId), templateId: Number(templateId), message, dueDate, purpose, visibility, viewerIds });
       if (!result.ok) break;
     }
     setIsSendingRequest(false);
@@ -1586,24 +1589,6 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
             <p className="text-sm font-normal text-muted">Selected people can read this request and its feedback, but cannot edit it.</p>
           </div>
         ) : null}
-          </div>
-        </details>
-
-        <details className="group rounded-xl border border-amber-200 bg-amber-50/50">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5 marker:hidden [&::-webkit-details-marker]:hidden">
-            <span><span className="block font-bold text-slate-900">Privacy</span><span className="mt-0.5 block text-sm font-normal text-slate-600">Keep the feedback giver anonymous, if needed.</span></span>
-            <span className="text-lg font-semibold text-amber-700 transition group-open:rotate-45">+</span>
-          </summary>
-          <div className="border-t border-amber-200 px-4 py-4">
-          <div className="rounded-lg bg-white/70 p-3">
-          <label className="flex cursor-pointer items-start gap-3">
-            <input className="mt-1 h-4 w-4" type="checkbox" checked={isAnonymous} onChange={(event) => setIsAnonymous(event.target.checked)} />
-            <span>
-              <span className="font-semibold text-slate-900">Keep the feedback giver anonymous</span>
-              <span className="mt-1 block text-sm font-normal text-slate-600">After feedback is submitted, their name is hidden from you and any selected viewers. The giver can still see their own request.</span>
-            </span>
-          </label>
-          </div>
           </div>
         </details>
 

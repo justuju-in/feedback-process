@@ -231,6 +231,9 @@ export async function createFeedbackRequest({
   const normalizedPurpose = normalizePurpose(purpose);
   const normalizedVisibility = normalizeVisibility(visibility);
   const normalizedIsAnonymous = normalizeAnonymous(isAnonymous);
+  if (!isDirectFeedback && normalizedIsAnonymous) {
+    throw new ServiceError(400, "Anonymous feedback can only be sent using Give Feedback");
+  }
   const normalizedViewerIds = normalizeViewerIds(viewerIds, requesterId, giverId, receiverId, normalizedVisibility);
   const requester = await requireUser(pool, requesterId, "Requester");
   if (requester.role === "external") throw new ServiceError(403, "External collaborators cannot create feedback requests");
