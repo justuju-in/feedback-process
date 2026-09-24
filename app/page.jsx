@@ -439,7 +439,7 @@ export default function Home() {
 
       <MobileNavigation activePage={activePage} showSCReview={isSafetyReviewer} showAnalytics={canViewAnalytics} showPeople={canManagePeople} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
 
-      <div className={`grid min-w-0 flex-1 ${isCreateOpen ? "xl:grid-cols-[260px_minmax(0,1fr)_minmax(380px,460px)]" : "xl:grid-cols-[260px_minmax(0,1fr)]"}`}>
+      <div className={`grid min-w-0 flex-1 ${(isCreateOpen || isGiveFeedbackOpen) ? "xl:grid-cols-[260px_minmax(0,1fr)_minmax(380px,460px)]" : "xl:grid-cols-[260px_minmax(0,1fr)]"}`}>
         <Sidebar activePage={activePage} showSCReview={isSafetyReviewer} showAnalytics={canViewAnalytics} showPeople={canManagePeople} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
 
         <main className="min-w-0 border-x border-line/70 bg-white/55 px-5 py-7 backdrop-blur-sm sm:px-7 sm:py-8 lg:px-9 xl:px-10">
@@ -480,7 +480,7 @@ export default function Home() {
           </section>
 
           <section className="mt-7 grid gap-5 xl:grid-cols-3">
-            <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><p className="text-sm font-bold uppercase tracking-wide text-blue-600">Quick actions</p><h2 className="mt-1 text-xl font-bold text-slate-950">What would you like to do?</h2><p className="mt-2 text-sm text-muted">Request feedback, share feedback directly, or check feedback waiting for you.</p><div className="mt-5 flex flex-wrap gap-3"><button className={primaryButton} type="button" onClick={() => { setError(""); setReplacementRequest(null); setIsCreateOpen(true); }}><Plus size={17} /> Request feedback</button><button className={secondaryButton} type="button" onClick={() => { setError(""); setIsGiveFeedbackOpen(true); }}><Send size={17} /> Give feedback</button><button className={secondaryButton} type="button" onClick={() => setActivePage("requests")}>View requests ({pendingForMe.length})</button></div></article>
+            <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><p className="text-sm font-bold uppercase tracking-wide text-blue-600">Quick actions</p><h2 className="mt-1 text-xl font-bold text-slate-950">What would you like to do?</h2><p className="mt-2 text-sm text-muted">Request feedback, share feedback directly, or check feedback waiting for you.</p><div className="mt-5 flex flex-wrap gap-3"><button className={primaryButton} type="button" onClick={() => { setError(""); setReplacementRequest(null); setIsGiveFeedbackOpen(false); setIsCreateOpen(true); }}><Plus size={17} /> Request feedback</button><button className={secondaryButton} type="button" onClick={() => { setError(""); setIsCreateOpen(false); setIsGiveFeedbackOpen(true); }}><Send size={17} /> Give feedback</button><button className={secondaryButton} type="button" onClick={() => setActivePage("requests")}>View requests ({pendingForMe.length})</button></div></article>
             <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><p className="text-sm font-bold uppercase tracking-wide text-amber-600">Upcoming due dates</p><h2 className="mt-1 text-xl font-bold text-slate-950">Keep on track</h2><div className="mt-4 grid gap-2">{upcomingRequests.length ? upcomingRequests.map((request) => <div key={request.id} className="flex justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm"><span className="font-semibold">{request.type}</span><span className="font-bold text-amber-700">{request.dueDate}</span></div>) : <p className="text-sm text-muted">No upcoming due dates.</p>}</div></article>
             <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><p className="text-sm font-bold uppercase tracking-wide text-violet-600">Recent activity</p><h2 className="mt-1 text-xl font-bold text-slate-950">Latest updates</h2><div className="mt-4 grid gap-2">{tableRows.slice(0, 3).map((request) => <button key={request.id} type="button" onClick={() => void openRequest(request.id)} className="rounded-lg bg-slate-50 px-3 py-2 text-left text-sm transition hover:bg-violet-50"><p className="font-semibold text-slate-800">{request.type}</p><p className="mt-1 text-muted">{request.status} · {request.giverName}</p></button>)}</div></article>
           </section>
@@ -954,10 +954,10 @@ function GiveFeedbackModal({ currentUser, users, templates, onClose, onSubmit })
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm sm:p-6">
-      <form className="max-h-[calc(100vh-32px)] w-full max-w-3xl overflow-auto rounded-3xl border border-white/30 bg-white p-6 shadow-[0_28px_90px_rgba(15,23,42,0.35)] sm:p-8" onSubmit={submit}>
+    <aside className="min-w-0 border-l border-line/80 bg-white/95 px-6 py-6 shadow-[-10px_0_30px_rgba(15,23,42,0.08)] backdrop-blur-sm sm:px-7 sm:py-7 lg:sticky lg:top-[72px] lg:max-h-[calc(100vh-72px)] lg:self-start lg:overflow-y-scroll">
+      <form className="grid gap-1" onSubmit={submit}>
         <div className="flex items-start justify-between gap-4">
-          <div><p className="text-sm font-bold uppercase tracking-wide text-emerald-700">Share feedback</p><h2 className="mt-1 text-3xl font-extrabold text-slate-950">Give feedback</h2><p className="mt-2 text-sm text-muted">Share private, helpful feedback directly. People do not need to request it first.</p></div>
+          <div><p className="text-sm font-bold uppercase tracking-wide text-emerald-700">New feedback</p><h2 className="mt-1 text-3xl font-extrabold text-slate-950">Give feedback</h2><p className="mt-2 text-sm text-muted">Share private, helpful feedback directly. People do not need to request it first.</p></div>
           <button className="rounded-lg p-2 text-muted hover:bg-slate-100" type="button" aria-label="Close give feedback form" onClick={onClose}>×</button>
         </div>
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -970,7 +970,7 @@ function GiveFeedbackModal({ currentUser, users, templates, onClose, onSubmit })
         {notice ? <p className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{notice}</p> : null}
         <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-5"><button className={secondaryButton} type="button" onClick={onClose} disabled={isSubmitting}>Cancel</button><button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-60" type="submit" disabled={isSubmitting}><Send size={17} />{isSubmitting ? "Sharing…" : "Share feedback"}</button></div>
       </form>
-    </div>
+    </aside>
   );
 }
 
