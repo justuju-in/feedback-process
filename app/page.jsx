@@ -826,7 +826,7 @@ function AnalyticsDashboard({ analytics }) {
   const summary = analytics.summary || {};
   const completionRate = Number(summary.totalRequests) ? Math.round((Number(summary.completedRequests) / Number(summary.totalRequests)) * 100) : 0;
   const templateItems = analytics.byTemplate || [];
-  const templatesPerPage = 5;
+  const templatesPerPage = 4;
   const templatePageCount = Math.max(1, Math.ceil(templateItems.length / templatesPerPage));
   const currentTemplatePage = Math.min(templatePage, templatePageCount);
   const visibleTemplateItems = templateItems.slice((currentTemplatePage - 1) * templatesPerPage, currentTemplatePage * templatesPerPage);
