@@ -62,7 +62,7 @@ export default function LoginPage() {
     <main className="auth-shell">
       <div className="w-full max-w-lg">
         <Link className="mx-auto mb-7 flex w-fit items-center gap-4" href="/">
-          <span className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white shadow-lg ring-1 ring-slate-200">
+          <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white shadow-lg ring-1 ring-slate-200">
             <img src="/justuju-logo.png" alt="Justuju" className="h-full w-full object-cover" />
           </span>
           <span>
