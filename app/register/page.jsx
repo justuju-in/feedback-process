@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   ArrowRight,
+  Eye,
+  EyeOff,
   LockKeyhole,
 } from "lucide-react";
 
@@ -81,8 +83,8 @@ export default function RegisterPage() {
                 <p className="mt-2 text-xs font-medium text-slate-500">Only <span className="font-semibold text-[#36429a]">@justuju.in</span> email addresses can create an account.</p>
               </div>
               <div className="grid gap-5 sm:grid-cols-2">
-                <AuthField autoComplete="new-password" id="password" label="Password" onChange={updateField} placeholder="Minimum 8 characters" type="password" value={form.password} />
-                <AuthField autoComplete="new-password" id="confirmPassword" label="Confirm password" onChange={updateField} placeholder="Enter it again" type="password" value={form.confirmPassword} />
+                <PasswordField autoComplete="new-password" id="password" label="Password" onChange={updateField} placeholder="Minimum 8 characters" value={form.password} />
+                <PasswordField autoComplete="new-password" id="confirmPassword" label="Confirm password" onChange={updateField} placeholder="Enter it again" value={form.confirmPassword} />
               </div>
 
               {error ? <p className="rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700" role="alert">{error}</p> : null}
@@ -123,6 +125,40 @@ function AuthField({ autoComplete, id, label, onChange, placeholder, type, value
         type={type}
         value={value}
       />
+    </label>
+  );
+}
+
+function PasswordField({ autoComplete, id, label, onChange, placeholder, value }) {
+  const [isVisible, setIsVisible] = useState(false);
+
+  return (
+    <label className="grid gap-2" htmlFor={id}>
+      <span className="text-sm font-semibold text-slate-800">{label}</span>
+      <span className="relative block">
+        <input
+          autoComplete={autoComplete}
+          className="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 pr-12 text-base outline-none transition placeholder:text-slate-400 focus:border-[#4c57a7] focus:ring-4 focus:ring-indigo-100"
+          id={id}
+          name={id}
+          onChange={onChange}
+          placeholder={placeholder}
+          required
+          type={isVisible ? "text" : "password"}
+          value={value}
+        />
+        <button
+          aria-label={isVisible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
+          className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-500 transition hover:text-[#36429a] focus:outline-none"
+          onClick={(event) => {
+            event.preventDefault();
+            setIsVisible((current) => !current);
+          }}
+          type="button"
+        >
+          {isVisible ? <EyeOff aria-hidden="true" size={18} /> : <Eye aria-hidden="true" size={18} />}
+        </button>
+      </span>
     </label>
   );
 }
