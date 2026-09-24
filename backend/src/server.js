@@ -131,6 +131,14 @@ async function startServer() {
     await getDatabasePool().execute("ALTER TABLE feedback_requests ADD COLUMN submitted_at TIMESTAMP NULL AFTER status");
   }
 
+  const [[directFeedbackColumn]] = await getDatabasePool().execute(
+    `SELECT COUNT(*) AS count FROM information_schema.columns
+     WHERE table_schema = DATABASE() AND table_name = 'feedback_requests' AND column_name = 'is_direct'`,
+  );
+  if (!directFeedbackColumn.count) {
+    await getDatabasePool().execute("ALTER TABLE feedback_requests ADD COLUMN is_direct BOOLEAN NOT NULL DEFAULT FALSE AFTER is_anonymous");
+  }
+
   const [[discussionAnswerColumn]] = await getDatabasePool().execute(
     `SELECT COUNT(*) AS count FROM information_schema.columns
      WHERE table_schema = DATABASE() AND table_name = 'feedback_discussions' AND column_name = 'answer_id'`,

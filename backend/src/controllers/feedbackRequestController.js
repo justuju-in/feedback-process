@@ -64,6 +64,27 @@ export async function createFeedbackRequest(req, res) {
   }
 }
 
+export async function createDirectFeedback(req, res) {
+  const giverId = req.auth.user.id;
+  const receiverId = parsePositiveInteger(req.body.receiverId);
+  const templateId = parsePositiveInteger(req.body.templateId);
+  const { answers, purpose } = req.body;
+
+  if (req.auth.user.role === "external") return res.status(403).json({ message: "External collaborators cannot give direct feedback." });
+  if (!receiverId || !templateId) return res.status(400).json({ message: "receiverId and templateId must be positive integers" });
+
+  try {
+    const createdFeedback = await createFeedbackRequestInDatabase({
+      requesterId: giverId, giverId, receiverId, templateId, purpose,
+      visibility: "private", viewerIds: [], isAnonymous: false, isDirectFeedback: true,
+    });
+    const feedbackRequest = await saveFeedbackAnswers(createdFeedback.id, giverId, answers);
+    return res.status(201).json({ message: "Feedback shared", feedbackRequest });
+  } catch (error) {
+    return respondWithError(res, error);
+  }
+}
+
 export async function getRequestsForReceiver(req, res) {
   const receiverId = parsePositiveInteger(req.params.userId);
   if (!receiverId) return res.status(400).json({ message: "User ID must be a positive integer" });

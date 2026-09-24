@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import {
   createFeedbackRequest,
+  createDirectFeedback,
   createFeedbackDiscussion,
   createFollowUp,
   getFeedbackRequestById,
@@ -25,6 +26,7 @@ const router = Router();
 router.use(requireAuth);
 
 router.post("/", createFeedbackRequest);
+router.post("/direct", createDirectFeedback);
 router.get("/giver/:userId", getRequestsForGiver);
 router.get("/receiver/:userId", getRequestsForReceiver);
 router.get("/requester/:userId", getRequestsForRequester);

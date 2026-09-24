@@ -70,6 +70,7 @@ export default function Home() {
   const [followUpRequest, setFollowUpRequest] = useState(null);
   const [replacementRequest, setReplacementRequest] = useState(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isGiveFeedbackOpen, setIsGiveFeedbackOpen] = useState(false);
   const [activePage, setActivePage] = useState("dashboard");
   const [requestSearch, setRequestSearch] = useState("");
   const [requestStatus, setRequestStatus] = useState("all");
@@ -194,6 +195,16 @@ export default function Home() {
       return { ok: true };
     } catch (createError) {
       return { ok: false, message: createError.message };
+    }
+  }
+
+  async function giveDirectFeedback(payload) {
+    try {
+      await api("/feedback-requests/direct", { method: "POST", body: JSON.stringify(payload) });
+      void loadRequests(currentUserId);
+      return { ok: true };
+    } catch (feedbackError) {
+      return { ok: false, message: feedbackError.message };
     }
   }
 
@@ -469,7 +480,7 @@ export default function Home() {
           </section>
 
           <section className="mt-7 grid gap-5 xl:grid-cols-3">
-            <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><p className="text-sm font-bold uppercase tracking-wide text-blue-600">Quick actions</p><h2 className="mt-1 text-xl font-bold text-slate-950">What would you like to do?</h2><p className="mt-2 text-sm text-muted">Start a new request or check feedback waiting for you.</p><div className="mt-5 flex flex-wrap gap-3"><button className={primaryButton} type="button" onClick={() => { setError(""); setReplacementRequest(null); setIsCreateOpen(true); }}><Plus size={17} /> Request feedback</button><button className={secondaryButton} type="button" onClick={() => setActivePage("requests")}>View requests ({pendingForMe.length})</button></div></article>
+            <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><p className="text-sm font-bold uppercase tracking-wide text-blue-600">Quick actions</p><h2 className="mt-1 text-xl font-bold text-slate-950">What would you like to do?</h2><p className="mt-2 text-sm text-muted">Request feedback, share feedback directly, or check feedback waiting for you.</p><div className="mt-5 flex flex-wrap gap-3"><button className={primaryButton} type="button" onClick={() => { setError(""); setReplacementRequest(null); setIsCreateOpen(true); }}><Plus size={17} /> Request feedback</button><button className={secondaryButton} type="button" onClick={() => { setError(""); setIsGiveFeedbackOpen(true); }}><Send size={17} /> Give feedback</button><button className={secondaryButton} type="button" onClick={() => setActivePage("requests")}>View requests ({pendingForMe.length})</button></div></article>
             <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><p className="text-sm font-bold uppercase tracking-wide text-amber-600">Upcoming due dates</p><h2 className="mt-1 text-xl font-bold text-slate-950">Keep on track</h2><div className="mt-4 grid gap-2">{upcomingRequests.length ? upcomingRequests.map((request) => <div key={request.id} className="flex justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm"><span className="font-semibold">{request.type}</span><span className="font-bold text-amber-700">{request.dueDate}</span></div>) : <p className="text-sm text-muted">No upcoming due dates.</p>}</div></article>
             <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><p className="text-sm font-bold uppercase tracking-wide text-violet-600">Recent activity</p><h2 className="mt-1 text-xl font-bold text-slate-950">Latest updates</h2><div className="mt-4 grid gap-2">{tableRows.slice(0, 3).map((request) => <button key={request.id} type="button" onClick={() => void openRequest(request.id)} className="rounded-lg bg-slate-50 px-3 py-2 text-left text-sm transition hover:bg-violet-50"><p className="font-semibold text-slate-800">{request.type}</p><p className="mt-1 text-muted">{request.status} · {request.giverName}</p></button>)}</div></article>
           </section>
@@ -611,6 +622,7 @@ export default function Home() {
             onClose={() => { setIsCreateOpen(false); setReplacementRequest(null); }}
           />
         ) : null}
+        {isGiveFeedbackOpen ? <GiveFeedbackModal currentUser={currentUser} users={users} templates={templates} onClose={() => setIsGiveFeedbackOpen(false)} onSubmit={giveDirectFeedback} /> : null}
       </div>
 
       <AppFooter />
@@ -887,6 +899,74 @@ function RequestProgress({ step }) {
         </li>;
       })}
     </ol>
+  );
+}
+
+function GiveFeedbackModal({ currentUser, users, templates, onClose, onSubmit }) {
+  const recipients = users.filter((user) => user.id !== currentUser.id && user.isActive !== false);
+  const availableTemplates = templates.filter((template) => template.name !== "Group Feedback");
+  const [receiverId, setReceiverId] = useState("");
+  const [templateId, setTemplateId] = useState("");
+  const [purpose, setPurpose] = useState("growth");
+  const [questions, setQuestions] = useState([]);
+  const [answers, setAnswers] = useState({});
+  const [notice, setNotice] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!recipients.some((user) => user.id === Number(receiverId))) setReceiverId(String(recipients[0]?.id || ""));
+  }, [receiverId, recipients]);
+
+  useEffect(() => {
+    if (!availableTemplates.some((template) => template.id === Number(templateId))) setTemplateId(String(availableTemplates[0]?.id || ""));
+  }, [availableTemplates, templateId]);
+
+  useEffect(() => {
+    if (!templateId) return undefined;
+    let active = true;
+    api(`/templates/${templateId}/questions`)
+      .then((data) => {
+        if (!active) return;
+        const nextQuestions = data.questions || [];
+        setQuestions(nextQuestions);
+        setAnswers(Object.fromEntries(nextQuestions.map((question) => [question.id, { answer: "", rating: null }])));
+      })
+      .catch((error) => { if (active) { setQuestions([]); setNotice(error.message); } });
+    return () => { active = false; };
+  }, [templateId]);
+
+  async function submit(event) {
+    event.preventDefault();
+    if (!receiverId || !templateId || !questions.length) return setNotice("Choose a person and a feedback type with questions.");
+    if (questions.some((question) => !(answers[question.id]?.answer || "").trim())) return setNotice("Please answer every question before sharing feedback.");
+    setIsSubmitting(true);
+    setNotice("");
+    const result = await onSubmit({
+      receiverId: Number(receiverId), templateId: Number(templateId), purpose,
+      answers: questions.map((question) => ({ questionId: question.id, answer: answers[question.id]?.answer || "", rating: answers[question.id]?.rating || null })),
+    });
+    setIsSubmitting(false);
+    if (result.ok) onClose();
+    else setNotice(result.message || "Feedback could not be shared.");
+  }
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm sm:p-6">
+      <form className="max-h-[calc(100vh-32px)] w-full max-w-3xl overflow-auto rounded-3xl border border-white/30 bg-white p-6 shadow-[0_28px_90px_rgba(15,23,42,0.35)] sm:p-8" onSubmit={submit}>
+        <div className="flex items-start justify-between gap-4">
+          <div><p className="text-sm font-bold uppercase tracking-wide text-emerald-700">Share feedback</p><h2 className="mt-1 text-3xl font-extrabold text-slate-950">Give feedback</h2><p className="mt-2 text-sm text-muted">Share private, helpful feedback directly. The person does not need to request it first.</p></div>
+          <button className="rounded-lg p-2 text-muted hover:bg-slate-100" type="button" aria-label="Close give feedback form" onClick={onClose}>×</button>
+        </div>
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <Field label="Who will receive feedback?"><SelectShell><select className="w-full bg-transparent outline-none" value={receiverId} onChange={(event) => setReceiverId(event.target.value)}>{recipients.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></SelectShell></Field>
+          <Field label="Feedback type"><SelectShell><select className="w-full bg-transparent outline-none" value={templateId} onChange={(event) => setTemplateId(event.target.value)}>{availableTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></SelectShell></Field>
+        </div>
+        <Field className="mt-4" label="Feedback purpose"><SelectShell><select className="w-full bg-transparent outline-none" value={purpose} onChange={(event) => setPurpose(event.target.value)}><option value="growth">Development and growth</option><option value="project_improvement">Project improvement</option><option value="one_on_one">One-on-one discussion</option><option value="appraisal">Official performance/appraisal record</option></select></SelectShell></Field>
+        <section className="mt-6 grid gap-5">{questions.map((question, index) => <Field key={question.id} label={<span className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">{index + 1}</span><span>{question.questionText}</span></span>}><textarea className={`${fieldClass} min-h-28 resize-y leading-7`} value={answers[question.id]?.answer || ""} onChange={(event) => setAnswers((items) => ({ ...items, [question.id]: { ...(items[question.id] || {}), answer: event.target.value } }))} required /> <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600"><span className="font-semibold">Optional rating</span>{[1, 2, 3, 4, 5].map((rating) => <button key={rating} className={`h-8 w-8 rounded-full border font-bold ${answers[question.id]?.rating === rating ? "border-amber-400 bg-amber-400 text-white" : "border-slate-200 bg-white text-slate-600"}`} type="button" onClick={() => setAnswers((items) => ({ ...items, [question.id]: { ...(items[question.id] || {}), rating } }))}>{rating}</button>)}</div></Field>)}</section>
+        {notice ? <p className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{notice}</p> : null}
+        <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-5"><button className={secondaryButton} type="button" onClick={onClose} disabled={isSubmitting}>Cancel</button><button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-60" type="submit" disabled={isSubmitting}><Send size={17} />{isSubmitting ? "Sharing…" : "Share feedback"}</button></div>
+      </form>
+    </div>
   );
 }
 
@@ -1725,8 +1805,8 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
     : request.status === "declined"
       ? "This feedback request was declined."
       : feedbackWasShared
-        ? `This feedback was shared with ${request.requesterName}.`
-        : `Your feedback will be shared with ${request.requesterName}.`;
+        ? `This feedback was shared with ${request.isDirect ? request.receiverName : request.requesterName}.`
+        : `Your feedback will be shared with ${request.isDirect ? request.receiverName : request.requesterName}.`;
   const [answers, setAnswers] = useState(() => Object.fromEntries((request.answers?.length ? request.answers : request.draft?.answers || []).map((item) => [item.questionId, { answer: item.answer || "", rating: item.rating || null }])));
   const [acknowledgementComment, setAcknowledgementComment] = useState("");
   const [isReportOpen, setIsReportOpen] = useState(false);
@@ -1780,7 +1860,7 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
               {template.templateName}
             </div>
             <h2 className="text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
-              {request.requesterName} requested feedback from {request.giverName}
+              {request.isDirect ? `${request.giverName} shared feedback with ${request.receiverName}` : `${request.requesterName} requested feedback from ${request.giverName}`}
             </h2>
             <p className="mt-2 text-sm text-slate-600">Share clear, kind, and actionable feedback.</p>
             {request.isAnonymous && !isGiver ? <p className="mt-3 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">Anonymous feedback · giver name hidden</p> : null}

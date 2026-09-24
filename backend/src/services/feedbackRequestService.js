@@ -31,6 +31,7 @@ const requestSelect = `
     request.purpose,
     request.visibility,
     request.is_anonymous AS isAnonymous,
+    request.is_direct AS isDirect,
     request.due_date AS dueDate,
     request.status,
     request.decline_reason AS declineReason,
@@ -217,10 +218,13 @@ export async function createFeedbackRequest({
   visibility,
   viewerIds,
   isAnonymous,
+  isDirectFeedback = false,
 }) {
-  if (requesterId === giverId) {
+  if (requesterId === giverId && !isDirectFeedback) {
     throw new ServiceError(400, "You cannot request feedback from yourself");
   }
+  if (isDirectFeedback && requesterId !== giverId) throw new ServiceError(400, "Direct feedback must be created by the feedback giver");
+  if (isDirectFeedback && giverId === receiverId) throw new ServiceError(400, "You cannot give feedback to yourself");
 
   const pool = getDatabasePool();
   const normalizedDueDate = normalizeDueDate(dueDate);
@@ -253,7 +257,7 @@ export async function createFeedbackRequest({
     [requesterId, giverId, receiverId, templateId, normalizedPurpose],
   );
 
-  if (duplicateRequest) {
+  if (duplicateRequest && !isDirectFeedback) {
     throw new ServiceError(
       409,
       "An open request already exists for this feedback type, purpose, and these people. Choose a different purpose or feedback type, or complete/cancel the open request first.",
@@ -266,9 +270,9 @@ export async function createFeedbackRequest({
     await connection.beginTransaction();
     [result] = await connection.execute(
       `INSERT INTO feedback_requests
-         (requester_id, giver_id, receiver_id, template_id, message, due_date, purpose, visibility, is_anonymous, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'requested')`,
-      [requesterId, giverId, receiverId, templateId, message || null, normalizedDueDate, normalizedPurpose, normalizedVisibility, normalizedIsAnonymous],
+         (requester_id, giver_id, receiver_id, template_id, message, due_date, purpose, visibility, is_anonymous, is_direct, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'requested')`,
+      [requesterId, giverId, receiverId, templateId, message || null, normalizedDueDate, normalizedPurpose, normalizedVisibility, normalizedIsAnonymous, isDirectFeedback],
     );
     const [templateQuestions] = await connection.execute(
       `SELECT id, question_text AS questionText, question_order AS questionOrder
@@ -301,7 +305,7 @@ export async function createFeedbackRequest({
   }
 
   const feedbackRequest = await getFeedbackRequestById(result.insertId);
-  await notifyUser({
+  if (!isDirectFeedback) await notifyUser({
     userId: feedbackRequest.giverId,
     requestId: feedbackRequest.id,
     type: "feedback_request",
@@ -309,7 +313,8 @@ export async function createFeedbackRequest({
     message: `${feedbackRequest.requesterName} requested ${feedbackRequest.templateName} from you.`,
   });
 
-  let notification = { sent: false, reason: "Mattermost notification was not sent" };
+  let notification = { sent: false, reason: isDirectFeedback ? "Direct feedback does not send a request notification" : "Mattermost notification was not sent" };
+  if (isDirectFeedback) return { ...feedbackRequest, notification };
   try {
     notification = await sendFeedbackRequestNotification(feedbackRequest);
   } catch (error) {
