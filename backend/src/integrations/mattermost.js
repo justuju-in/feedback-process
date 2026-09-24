@@ -3,6 +3,75 @@ function getMattermostUsername(name) {
   return username ? username.replace(/[^a-zA-Z0-9._-]/g, "") : null;
 }
 
+function getMattermostApiConfig() {
+  const baseUrl = process.env.MATTERMOST_URL?.trim().replace(/\/$/, "");
+  const token = process.env.MATTERMOST_BOT_TOKEN?.trim();
+  if (!baseUrl || !token) return null;
+  return { baseUrl, token };
+}
+
+let botUserId;
+const userIdByEmail = new Map();
+
+async function callMattermostApi(config, path, options = {}) {
+  const response = await fetch(`${config.baseUrl}/api/v4${path}`, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${config.token}`,
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+  });
+
+  if (!response.ok) {
+    const responseText = await response.text();
+    throw new Error(`Mattermost bot API failed (${response.status}): ${responseText}`);
+  }
+
+  return response.json();
+}
+
+async function getBotUserId(config) {
+  if (botUserId) return botUserId;
+  const bot = await callMattermostApi(config, "/users/me");
+  botUserId = bot.id;
+  return botUserId;
+}
+
+async function getMattermostUserIdByEmail(config, email) {
+  const normalizedEmail = email?.trim().toLowerCase();
+  if (!normalizedEmail) {
+    throw new Error("Feedback user has no email address for Mattermost DM");
+  }
+  if (userIdByEmail.has(normalizedEmail)) return userIdByEmail.get(normalizedEmail);
+
+  const user = await callMattermostApi(
+    config,
+    `/users/email/${encodeURIComponent(normalizedEmail)}`,
+  );
+  userIdByEmail.set(normalizedEmail, user.id);
+  return user.id;
+}
+
+async function sendPrivateMattermostMessage({ email, text }) {
+  const config = getMattermostApiConfig();
+  if (!config) return null;
+
+  const [botId, userId] = await Promise.all([
+    getBotUserId(config),
+    getMattermostUserIdByEmail(config, email),
+  ]);
+  const directChannel = await callMattermostApi(config, "/channels/direct", {
+    method: "POST",
+    body: JSON.stringify([botId, userId]),
+  });
+  await callMattermostApi(config, "/posts", {
+    method: "POST",
+    body: JSON.stringify({ channel_id: directChannel.id, message: text }),
+  });
+  return { sent: true, delivery: "direct-message" };
+}
+
 async function sendMattermostMessage(text, webhookUrl = process.env.MATTERMOST_WEBHOOK_URL) {
 
   if (!webhookUrl) {
@@ -48,6 +117,13 @@ export async function sendFeedbackReportNotification(report) {
 }
 
 export async function sendFeedbackRequestNotification(feedbackRequest) {
+  const message = `**${feedbackRequest.requesterName}** requested **${feedbackRequest.templateName}** from you.`;
+  const directMessage = await sendPrivateMattermostMessage({
+    email: feedbackRequest.giverEmail,
+    text: message,
+  });
+  if (directMessage) return directMessage;
+
   const giverUsername = getMattermostUsername(feedbackRequest.giverName);
 
   if (!giverUsername) {
@@ -55,8 +131,7 @@ export async function sendFeedbackRequestNotification(feedbackRequest) {
   }
 
   return sendMattermostMessage(
-    `@${giverUsername}, **${feedbackRequest.requesterName}** requested ` +
-      `**${feedbackRequest.templateName}** from you.`,
+    `@${giverUsername}, ${message}`,
   );
 }
 
@@ -66,6 +141,17 @@ export async function sendFeedbackSubmittedNotification(feedbackRequest) {
   const notificationRecipientName = feedbackRequest.isDirect
     ? feedbackRequest.receiverName
     : feedbackRequest.requesterName;
+  const notificationRecipientEmail = feedbackRequest.isDirect
+    ? feedbackRequest.receiverEmail
+    : feedbackRequest.requesterEmail;
+  const message = `**${feedbackRequest.isAnonymous ? "Anonymous feedback" : feedbackRequest.giverName}** was submitted for your ` +
+    `**${feedbackRequest.templateName}**. Open Feedback to read it.`;
+  const directMessage = await sendPrivateMattermostMessage({
+    email: notificationRecipientEmail,
+    text: message,
+  });
+  if (directMessage) return directMessage;
+
   const requesterUsername = getMattermostUsername(notificationRecipientName);
 
   if (!requesterUsername) {
@@ -73,57 +159,84 @@ export async function sendFeedbackSubmittedNotification(feedbackRequest) {
   }
 
   return sendMattermostMessage(
-    `@${requesterUsername}, **${feedbackRequest.isAnonymous ? "Anonymous feedback" : feedbackRequest.giverName}** was submitted for your ` +
-      `**${feedbackRequest.templateName}**. Open Feedback and select ` +
-      `**View** to read the feedback.`,
+    `@${requesterUsername}, ${message}`,
   );
 }
 
 export async function sendFeedbackDueSoonNotification(feedbackRequest) {
+  const message = `Reminder: **${feedbackRequest.templateName}** feedback for ` +
+    `**${feedbackRequest.receiverName}** is due tomorrow (${feedbackRequest.dueDate}).`;
+  const directMessage = await sendPrivateMattermostMessage({
+    email: feedbackRequest.giverEmail,
+    text: message,
+  });
+  if (directMessage) return directMessage;
+
   const giverUsername = getMattermostUsername(feedbackRequest.giverName);
   if (!giverUsername) {
     return { sent: false, reason: "Feedback giver has no Mattermost username" };
   }
 
   return sendMattermostMessage(
-    `@${giverUsername}, reminder: **${feedbackRequest.templateName}** feedback for ` +
-      `**${feedbackRequest.receiverName}** is due tomorrow (${feedbackRequest.dueDate}).`,
+    `@${giverUsername}, ${message}`,
   );
 }
 
 export async function sendFeedbackDueTodayNotification(feedbackRequest) {
+  const message = `Reminder: **${feedbackRequest.templateName}** feedback for ` +
+    `**${feedbackRequest.receiverName}** is due today (${feedbackRequest.dueDate}).`;
+  const directMessage = await sendPrivateMattermostMessage({
+    email: feedbackRequest.giverEmail,
+    text: message,
+  });
+  if (directMessage) return directMessage;
+
   const giverUsername = getMattermostUsername(feedbackRequest.giverName);
   if (!giverUsername) {
     return { sent: false, reason: "Feedback giver has no Mattermost username" };
   }
 
   return sendMattermostMessage(
-    `@${giverUsername}, reminder: **${feedbackRequest.templateName}** feedback for ` +
-      `**${feedbackRequest.receiverName}** is due today (${feedbackRequest.dueDate}).`,
+    `@${giverUsername}, ${message}`,
   );
 }
 
 export async function sendFeedbackDueDateChangedNotification(feedbackRequest) {
+  const deadline = feedbackRequest.dueDate || "no due date";
+  const message = `**${feedbackRequest.requesterName}** changed the deadline for ` +
+    `**${feedbackRequest.templateName}** feedback to **${deadline}**.`;
+  const directMessage = await sendPrivateMattermostMessage({
+    email: feedbackRequest.giverEmail,
+    text: message,
+  });
+  if (directMessage) return directMessage;
+
   const giverUsername = getMattermostUsername(feedbackRequest.giverName);
   if (!giverUsername) {
     return { sent: false, reason: "Feedback giver has no Mattermost username" };
   }
 
-  const deadline = feedbackRequest.dueDate || "no due date";
   return sendMattermostMessage(
-    `@${giverUsername}, **${feedbackRequest.requesterName}** changed the deadline for ` +
-      `**${feedbackRequest.templateName}** feedback to **${deadline}**.`,
+    `@${giverUsername}, ${message}`,
   );
 }
 
 export async function sendFeedbackOverdueNotification(feedbackRequest) {
+  const message = `**${feedbackRequest.templateName}** feedback for ` +
+    `**${feedbackRequest.receiverName}** is overdue (due ${feedbackRequest.dueDate}). ` +
+    "Please submit it or contact the requester.";
+  const directMessage = await sendPrivateMattermostMessage({
+    email: feedbackRequest.giverEmail,
+    text: message,
+  });
+  if (directMessage) return directMessage;
+
   const giverUsername = getMattermostUsername(feedbackRequest.giverName);
   if (!giverUsername) {
     return { sent: false, reason: "Feedback giver has no Mattermost username" };
   }
 
   return sendMattermostMessage(
-    `@${giverUsername}, **${feedbackRequest.templateName}** feedback for ` +
-      `**${feedbackRequest.receiverName}** is overdue (due ${feedbackRequest.dueDate}). Please submit it or contact the requester.`,
+    `@${giverUsername}, ${message}`,
   );
 }
