@@ -485,7 +485,6 @@ export default function Home() {
               tone="amber"
               label="Received feedback"
               value={receivedFeedback.length}
-              helper="Feedback responses ready to review"
             />
           </section>
 
@@ -894,7 +893,7 @@ function StatCard({ icon, tone, label, value, helper }) {
           </p>
         </div>
       </div>
-      <p className="mt-4 text-sm leading-6 text-muted sm:text-base">{helper}</p>
+      {helper ? <p className="mt-4 text-sm leading-6 text-muted sm:text-base">{helper}</p> : null}
     </article>
   );
 }
