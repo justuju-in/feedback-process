@@ -61,9 +61,12 @@ export async function sendFeedbackRequestNotification(feedbackRequest) {
 }
 
 export async function sendFeedbackSubmittedNotification(feedbackRequest) {
-  const requesterUsername = getMattermostUsername(
-    feedbackRequest.requesterName,
-  );
+  // A direct-feedback giver is also stored as the requester for audit/history,
+  // but the person who must be alerted is the feedback receiver.
+  const notificationRecipientName = feedbackRequest.isDirect
+    ? feedbackRequest.receiverName
+    : feedbackRequest.requesterName;
+  const requesterUsername = getMattermostUsername(notificationRecipientName);
 
   if (!requesterUsername) {
     return { sent: false, reason: "Requester has no Mattermost username" };
