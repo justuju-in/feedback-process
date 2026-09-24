@@ -34,8 +34,11 @@ export async function createFeedbackReport({ requestId, reporterId, reason, deta
     const report = { id: result.insertId, requestId, reason, details: details || null, status: "open" };
     await writeFeedbackAuditEvent({ requestId, actorId: reporterId, eventType: "feedback_reported", details: reason });
     try {
+      const [scTeamMembers] = await pool.execute(
+        "SELECT email FROM users WHERE role = 'sc' AND is_active = TRUE",
+      );
       await Promise.all([
-        sendFeedbackReportNotification(report),
+        sendFeedbackReportNotification(report, scTeamMembers.map((member) => member.email)),
         sendSafetyReportEmail(report),
       ]);
     } catch (error) {

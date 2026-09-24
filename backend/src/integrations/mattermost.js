@@ -94,12 +94,7 @@ async function sendMattermostMessage(text, webhookUrl = process.env.MATTERMOST_W
   return { sent: true };
 }
 
-export async function sendFeedbackReportNotification(report) {
-  const webhookUrl = process.env.SC_MATTERMOST_WEBHOOK_URL;
-  if (!webhookUrl) {
-    return { sent: false, reason: "SC_MATTERMOST_WEBHOOK_URL is not configured" };
-  }
-
+export async function sendFeedbackReportNotification(report, scRecipientEmails = []) {
   const reasonLabels = {
     rude: "Rude or disrespectful",
     harassment: "Harassment or bullying",
@@ -107,13 +102,39 @@ export async function sendFeedbackReportNotification(report) {
     inappropriate: "Inappropriate content",
     other: "Other concern",
   };
-  return sendMattermostMessage(
+  const message =
     `:warning: **Feedback safety report received**\n` +
       `Report #${report.id} · Feedback request #${report.requestId}\n` +
       `Reason: **${reasonLabels[report.reason] || report.reason}**\n` +
-      `Please review this privately in Feedback.`,
-    webhookUrl,
-  );
+      "Please review this privately in Feedback Process → SC Team Review. " +
+      "This alert does not include feedback answers.";
+
+  // When the private Mattermost bot is configured, reports must go only to
+  // active SC Team reviewers—not a shared channel, admins, or other members.
+  if (getMattermostApiConfig()) {
+    const recipientEmails = [...new Set(scRecipientEmails
+      .map((email) => email?.trim().toLowerCase())
+      .filter(Boolean))];
+    if (!recipientEmails.length) {
+      return { sent: false, reason: "No active SC Team recipients are configured" };
+    }
+
+    const deliveries = await Promise.allSettled(recipientEmails.map((email) =>
+      sendPrivateMattermostMessage({ email, text: message }),
+    ));
+    const sentCount = deliveries.filter((delivery) => delivery.status === "fulfilled").length;
+    if (!sentCount) {
+      const firstFailure = deliveries.find((delivery) => delivery.status === "rejected");
+      throw firstFailure?.reason || new Error("SC Team Mattermost notification failed");
+    }
+    return { sent: true, delivery: "direct-message", recipientCount: sentCount };
+  }
+
+  const webhookUrl = process.env.SC_MATTERMOST_WEBHOOK_URL;
+  if (!webhookUrl) {
+    return { sent: false, reason: "SC Mattermost notifications are not configured" };
+  }
+  return sendMattermostMessage(message, webhookUrl);
 }
 
 export async function sendFeedbackRequestNotification(feedbackRequest) {
