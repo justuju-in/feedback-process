@@ -495,7 +495,7 @@ export default function Home() {
 
       <MobileNavigation activePage={activePage} showSCReview={isSafetyReviewer} showAnalytics={canViewAnalytics} showPeople={canManagePeople} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
 
-      <div className={`grid min-w-0 flex-1 ${(isCreateOpen || isGiveFeedbackOpen) ? "xl:grid-cols-[260px_minmax(0,1fr)_minmax(380px,460px)]" : "xl:grid-cols-[260px_minmax(0,1fr)]"}`}>
+      <div className="grid min-w-0 flex-1 xl:grid-cols-[260px_minmax(0,1fr)]">
         <Sidebar activePage={activePage} showSCReview={isSafetyReviewer} showAnalytics={canViewAnalytics} showPeople={canManagePeople} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
 
         <main className="min-w-0 border-x border-line/70 bg-white/55 px-5 py-7 backdrop-blur-sm sm:px-7 sm:py-8 lg:px-9 xl:px-10">
@@ -509,6 +509,22 @@ export default function Home() {
               <p className="mt-2 text-base text-muted">{activePage === "dashboard" ? "Request, share, and review thoughtful feedback in one place." : activePage === "history" ? "Review completed feedback and past request decisions." : activePage === "reports" ? "Private reports that need SC Team review." : activePage === "people" ? "Manage account access and keep open feedback requests accurate." : activePage === "analytics" ? "Anonymous totals to help the team improve its feedback process." : "Review, manage, and respond to every feedback request."}</p>
             </div>
           </div>
+
+          {isCreateOpen ? (
+            <CreateFeedbackPanel
+              currentUserId={currentUserId}
+              currentUser={currentUser}
+              users={users}
+              templates={templates}
+              requests={requests}
+              replacementRequest={replacementRequest}
+              onCreate={createRequest}
+              onCreateTemplate={createTemplate}
+              onUpdateTemplate={updateTemplate}
+              onSetTemplateStatus={setTemplateStatus}
+              onClose={() => { setIsCreateOpen(false); setReplacementRequest(null); }}
+            />
+          ) : null}
 
           {activePage === "dashboard" ? <>
           <section className="grid gap-5 xl:grid-cols-3">
@@ -580,7 +596,7 @@ export default function Home() {
                     {activePage === "history" ? <><button className="rounded-lg border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-700" type="button" onClick={() => void openRequest(row.id)}>View</button>{row.status === "declined" && row.requesterId === currentUserId && row.alternateGiverId ? <button className="rounded-lg border border-violet-200 px-3 py-2 text-sm font-semibold text-violet-700" type="button" onClick={() => { setReplacementRequest(row); setIsCreateOpen(true); }}>Use suggested reviewer</button> : null}</> : <RequestActions row={row} currentUserId={currentUserId} onView={() => void openRequest(row.id)} onAction={(action) => handleRequestAction(row, action)} onEditDueDate={() => setDueDateRequest(row)} />}
                   </div>
                 </article>
-              )) : <p className="rounded-xl bg-slate-50 px-4 py-10 text-center text-sm text-muted">{requestSearch || requestStatus !== "all" ? "No requests match these filters." : activePage === "history" ? "No feedback history yet." : "No feedback requests yet. Create a request from the right panel."}</p>}
+              )) : <p className="rounded-xl bg-slate-50 px-4 py-10 text-center text-sm text-muted">{requestSearch || requestStatus !== "all" ? "No requests match these filters." : activePage === "history" ? "No feedback history yet." : "No feedback requests yet. Open the request form to create one."}</p>}
             </div>
             <div className="hidden overflow-x-auto xl:block">
               <table className="w-full min-w-[820px] text-left">
@@ -644,7 +660,7 @@ export default function Home() {
                   )) : (
                     <tr>
                       <td className="px-6 py-12 text-center text-base text-muted" colSpan={7}>
-                        {requestSearch || requestStatus !== "all" ? "No requests match these filters." : activePage === "history" ? "No feedback history yet." : "No feedback requests yet. Create a request from the right panel."}
+                        {requestSearch || requestStatus !== "all" ? "No requests match these filters." : activePage === "history" ? "No feedback history yet." : "No feedback requests yet. Open the request form to create one."}
                       </td>
                     </tr>
                   )}
@@ -662,21 +678,6 @@ export default function Home() {
           ) : null}
         </main>
 
-        {isCreateOpen ? (
-          <CreateFeedbackPanel
-            currentUserId={currentUserId}
-            currentUser={currentUser}
-            users={users}
-            templates={templates}
-            requests={requests}
-            replacementRequest={replacementRequest}
-            onCreate={createRequest}
-            onCreateTemplate={createTemplate}
-            onUpdateTemplate={updateTemplate}
-            onSetTemplateStatus={setTemplateStatus}
-            onClose={() => { setIsCreateOpen(false); setReplacementRequest(null); }}
-          />
-        ) : null}
         {isGiveFeedbackOpen ? <GiveFeedbackModal currentUser={currentUser} users={users} templates={templates} onClose={() => setIsGiveFeedbackOpen(false)} onSubmit={giveDirectFeedback} /> : null}
       </div>
 
@@ -1379,21 +1380,23 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
   const manageableTemplates = templates.filter((template) => template.createdBy != null && (canModerateTemplates || template.createdBy === currentUserId));
 
   return (
-    <aside className="min-w-0 border-l border-line/80 bg-white/95 px-6 py-6 shadow-[-10px_0_30px_rgba(15,23,42,0.08)] backdrop-blur-sm sm:px-7 sm:py-7 lg:sticky lg:top-[72px] lg:max-h-[calc(100vh-72px)] lg:self-start lg:overflow-y-scroll">
-      <div className="mb-6 flex items-center justify-between gap-4">
+    <section className="mb-8 overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-[0_24px_70px_rgba(37,45,112,0.14)]">
+      <div className="flex items-center justify-between gap-4 border-b border-blue-100 bg-gradient-to-r from-blue-50 via-indigo-50 to-white px-6 py-6 sm:px-8">
         <div>
           <p className="mb-1 text-sm font-bold uppercase tracking-wide text-blue-600">{replacementRequest ? "Replacement request" : "New request"}</p>
           <h2 className="text-3xl font-bold tracking-tight text-[#111827]">{replacementRequest ? `Ask ${replacementRequest.alternateGiverName}` : "Request feedback"}</h2>
-          <p className="mt-2 text-sm text-muted">Sending as {currentUser.name}</p>
+          <p className="mt-2 text-sm text-muted">Sending as {currentUser.name}. Build or select a feedback form, then send it.</p>
         </div>
         <button className="rounded-lg p-2 text-muted transition hover:bg-slate-100 hover:text-ink" type="button" aria-label="Close request form" onClick={onClose}>
           ×
         </button>
       </div>
 
-      <RequestProgress step={step} />
+      <div className="px-6 pt-6 sm:px-8">
+        <RequestProgress step={step} />
+      </div>
 
-      <form className="mt-6 grid gap-5" onSubmit={submit}>
+      <form className="grid gap-5 px-6 py-6 sm:px-8 sm:py-8" onSubmit={submit}>
         <Field className={step === 1 ? "" : "hidden"} label="Feedback type">
           <SelectShell>
             <select className="w-full bg-transparent outline-none" value={templateId} onChange={(event) => selectFeedbackType(event.target.value)}>
@@ -1461,11 +1464,11 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
 
         {step === 2 ? <div className="flex items-center justify-between gap-3"><button className={secondaryButton} type="button" onClick={() => setStep(1)}>Back</button><button className={primaryButton} type="button" onClick={() => continueToStep(3)}>Continue</button></div> : null}
 
-        <div className={step === 1 ? "rounded-xl border border-dashed border-slate-300 bg-slate-50/70 p-3.5" : "hidden"}>
+        <div className={step === 1 ? "rounded-2xl border border-blue-100 bg-blue-50/40 p-4 sm:p-5" : "hidden"}>
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-bold text-slate-900">Need your own questions?</p>
-              <p className="mt-0.5 text-sm text-muted">Create a reusable custom template.</p>
+              <p className="mt-0.5 text-sm text-muted">Create a reusable custom template with short answer, long answer, dropdown, checkbox, and options.</p>
             </div>
             <button
               className={secondaryButton}
@@ -1486,7 +1489,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
           </div>
 
           {isCustomTemplateOpen ? (
-            <div className="mt-5 grid gap-4">
+            <div className="mt-5 grid gap-5 rounded-2xl border border-blue-100 bg-white p-4 shadow-sm sm:p-5">
               <Field label="Custom feedback type name">
                 <input
                   className={fieldClass}
@@ -1524,7 +1527,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
                   const usesOptions = optionQuestionTypes.has(question.questionType);
                   const usesTextValidation = textQuestionTypes.has(question.questionType);
                   return (
-                    <div key={`custom-question-${index}`} className="grid gap-3 rounded-xl border border-slate-200 bg-white p-3">
+                    <div key={`custom-question-${index}`} className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                       <div className="grid gap-2 sm:grid-cols-[1fr_180px_auto]">
                         <input
                           className={fieldClass}
@@ -1781,7 +1784,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
           </p>
         ) : null}
       </form>
-    </aside>
+    </section>
   );
 }
 
