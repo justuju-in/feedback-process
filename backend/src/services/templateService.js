@@ -63,8 +63,9 @@ const builtInTemplates = [
   },
   {
     name: "Custom Learning Check-in",
-    description: "Example custom template with dropdown, radio, checkbox, rating, and text fields",
+    description: "Example custom template with short answer, long answer, dropdown, checkbox, rating, and options",
     questions: [
+      question("What topic should this feedback focus on?", "short_text", [], true, { minLength: 3, maxLength: 80 }, "Example: React hooks, database joins, teamwork, or communication."),
       question("Which learning area is this feedback about?", "dropdown", ["Frontend", "Backend", "Database", "Communication", "Project work"]),
       question("Current confidence level", "radio", ["Low", "Medium", "High"]),
       question("Which skills should be practised next?", "checkbox", ["Concept clarity", "Hands-on practice", "Debugging", "Communication", "Documentation"]),
