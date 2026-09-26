@@ -9,6 +9,11 @@ import { writeFeedbackAuditEvent } from "./feedbackAuditService.js";
 import { FEEDBACK_CONTENT_POLICY_VIOLATION, validateAnonymousFeedbackText, validateRespectfulFeedbackText } from "./feedbackContentPolicy.js";
 import { writeFeedbackPolicyEvent } from "./feedbackPolicyAuditService.js";
 
+function parseJsonField(value, fallback) {
+  if (typeof value === "string") return JSON.parse(value || JSON.stringify(fallback));
+  return value || fallback;
+}
+
 function normalizeAnswers(answers, questions) {
   if (!Array.isArray(answers) || answers.length === 0) {
     throw new ServiceError(400, "answers must be a non-empty array");
@@ -53,6 +58,15 @@ function validateAnswers(normalizedAnswers, questions, requireText, isAnonymous 
     const isRequired = question?.isRequired !== false;
     if (requireText && isRequired && !item.answer) throw new ServiceError(400, "Answer text cannot be empty");
     if (item.answer) {
+      const validation = parseJsonField(question?.validation, {});
+      const minLength = Number(validation.minLength);
+      const maxLength = Number(validation.maxLength);
+      if (Number.isInteger(minLength) && minLength > 0 && item.answer.length < minLength) {
+        throw new ServiceError(400, `Answer for "${question.questionText || "this question"}" must be at least ${minLength} characters`);
+      }
+      if (Number.isInteger(maxLength) && maxLength > 0 && item.answer.length > maxLength) {
+        throw new ServiceError(400, `Answer for "${question.questionText || "this question"}" must be ${maxLength} characters or less`);
+      }
       if (isAnonymous) validateAnonymousFeedbackText(item.answer);
       else validateRespectfulFeedbackText(item.answer);
     }
@@ -63,7 +77,7 @@ function validateAnswers(normalizedAnswers, questions, requireText, isAnonymous 
 
 async function getQuestionsForRequest(executor, requestId, templateId) {
   const [snapshotQuestions] = await executor.execute(
-    `SELECT template_question_id AS id, is_required AS isRequired
+    `SELECT template_question_id AS id, question_text AS questionText, is_required AS isRequired, validation_json AS validation
      FROM feedback_request_questions
      WHERE request_id = ?
      ORDER BY question_order, id`,
@@ -73,7 +87,7 @@ async function getQuestionsForRequest(executor, requestId, templateId) {
 
   // Fallback for a request created before snapshots were introduced.
   const [templateQuestions] = await executor.execute(
-    `SELECT id, is_required AS isRequired
+    `SELECT id, question_text AS questionText, is_required AS isRequired, validation_json AS validation
      FROM template_questions
      WHERE template_id = ?
      ORDER BY question_order, id`,

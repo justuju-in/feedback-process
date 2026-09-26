@@ -165,6 +165,7 @@ CREATE TABLE IF NOT EXISTS template_questions (
   question_type VARCHAR(30) NOT NULL DEFAULT 'long_text',
   options_json JSON NULL,
   is_required BOOLEAN NOT NULL DEFAULT TRUE,
+  validation_json JSON NULL,
   question_order INT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
@@ -215,6 +216,21 @@ SET @add_template_question_required_column = (
 PREPARE add_template_question_required_column_statement FROM @add_template_question_required_column;
 EXECUTE add_template_question_required_column_statement;
 DEALLOCATE PREPARE add_template_question_required_column_statement;
+
+SET @add_template_question_validation_column = (
+  SELECT IF(
+    COUNT(*) = 0,
+    'ALTER TABLE template_questions ADD COLUMN validation_json JSON NULL AFTER is_required',
+    'SELECT 1'
+  )
+  FROM information_schema.columns
+  WHERE table_schema = DATABASE()
+    AND table_name = 'template_questions'
+    AND column_name = 'validation_json'
+);
+PREPARE add_template_question_validation_column_statement FROM @add_template_question_validation_column;
+EXECUTE add_template_question_validation_column_statement;
+DEALLOCATE PREPARE add_template_question_validation_column_statement;
 
 CREATE TABLE IF NOT EXISTS feedback_requests (
   id INT AUTO_INCREMENT PRIMARY KEY,

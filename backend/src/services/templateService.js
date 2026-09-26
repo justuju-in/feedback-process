@@ -4,9 +4,10 @@ import { ServiceError } from "./serviceError.js";
 const moderatorRoles = new Set(["admin"]);
 const questionTypes = new Set(["short_text", "long_text", "dropdown", "radio", "checkbox", "rating", "yes_no"]);
 const optionQuestionTypes = new Set(["dropdown", "radio", "checkbox"]);
+const textQuestionTypes = new Set(["short_text", "long_text"]);
 
-function question(questionText, questionType = "long_text", options = [], isRequired = true) {
-  return { questionText, questionType, options, isRequired };
+function question(questionText, questionType = "long_text", options = [], isRequired = true, validation = {}) {
+  return { questionText, questionType, options, isRequired, validation };
 }
 
 const builtInTemplates = [
@@ -68,7 +69,7 @@ const builtInTemplates = [
       question("Current confidence level", "radio", ["Low", "Medium", "High"]),
       question("Which skills should be practised next?", "checkbox", ["Concept clarity", "Hands-on practice", "Debugging", "Communication", "Documentation"]),
       question("How would you rate the current progress?", "rating"),
-      question("What should be the next clear action?", "long_text"),
+      question("What should be the next clear action?", "long_text", [], true, { minLength: 20, maxLength: 500 }),
     ],
   },
   {
@@ -107,6 +108,24 @@ function normalizeTemplateDetails({ name, description, questions }) {
   }
 
   return { templateName, templateDescription, normalizedQuestions };
+}
+
+function normalizeQuestionValidation(questionType, validation) {
+  if (!textQuestionTypes.has(questionType) || !validation || typeof validation !== "object") return {};
+  const minLength = Number(validation.minLength);
+  const maxLength = Number(validation.maxLength);
+  const normalizedValidation = {};
+  if (Number.isInteger(minLength) && minLength > 0) normalizedValidation.minLength = minLength;
+  if (Number.isInteger(maxLength) && maxLength > 0) normalizedValidation.maxLength = maxLength;
+  if (normalizedValidation.minLength && normalizedValidation.maxLength && normalizedValidation.minLength > normalizedValidation.maxLength) {
+    throw new ServiceError(400, "Minimum characters cannot be greater than maximum characters");
+  }
+  return normalizedValidation;
+}
+
+function parseJsonField(value, fallback) {
+  if (typeof value === "string") return JSON.parse(value || JSON.stringify(fallback));
+  return value || fallback;
 }
 
 export async function getAllTemplates({ includeInactive = false, userId = null } = {}) {
@@ -159,26 +178,28 @@ export async function ensureBuiltInTemplates() {
 
         if (existingQuestion) {
           await connection.execute(
-            "UPDATE template_questions SET question_text = ?, question_type = ?, options_json = ?, is_required = ? WHERE id = ?",
+            "UPDATE template_questions SET question_text = ?, question_type = ?, options_json = ?, is_required = ?, validation_json = ? WHERE id = ?",
             [
               questionDetails.questionText,
               questionDetails.questionType,
               JSON.stringify(questionDetails.options),
               questionDetails.isRequired,
+              JSON.stringify(questionDetails.validation),
               existingQuestion.id,
             ],
           );
         } else {
           await connection.execute(
             `INSERT INTO template_questions
-               (template_id, question_text, question_type, options_json, is_required, question_order)
-             VALUES (?, ?, ?, ?, ?, ?)`,
+               (template_id, question_text, question_type, options_json, is_required, validation_json, question_order)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [
               templateId,
               questionDetails.questionText,
               questionDetails.questionType,
               JSON.stringify(questionDetails.options),
               questionDetails.isRequired,
+              JSON.stringify(questionDetails.validation),
               index + 1,
             ],
           );
@@ -222,6 +243,7 @@ function normalizeTemplateQuestions(questions) {
         questionType,
         options: optionQuestionTypes.has(questionType) ? options.slice(0, 20) : [],
         isRequired: isObjectQuestion && typeof item.isRequired === "boolean" ? item.isRequired : true,
+        validation: normalizeQuestionValidation(questionType, isObjectQuestion ? item.validation : {}),
       };
     })
     .filter(Boolean);
@@ -266,14 +288,15 @@ export async function createTemplate({ name, description, questions, actorId }) 
     for (const [index, questionDetails] of normalizedQuestions.entries()) {
       await connection.execute(
         `INSERT INTO template_questions
-           (template_id, question_text, question_type, options_json, is_required, question_order)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+           (template_id, question_text, question_type, options_json, is_required, validation_json, question_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           templateId,
           questionDetails.questionText,
           questionDetails.questionType,
           JSON.stringify(questionDetails.options),
           questionDetails.isRequired,
+          JSON.stringify(questionDetails.validation),
           index + 1,
         ],
       );
@@ -351,14 +374,15 @@ export async function updateTemplate({ templateId, name, description, questions,
     for (const [index, questionDetails] of normalizedQuestions.entries()) {
       await connection.execute(
         `INSERT INTO template_questions
-           (template_id, question_text, question_type, options_json, is_required, question_order)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+           (template_id, question_text, question_type, options_json, is_required, validation_json, question_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           templateId,
           questionDetails.questionText,
           questionDetails.questionType,
           JSON.stringify(questionDetails.options),
           questionDetails.isRequired,
+          JSON.stringify(questionDetails.validation),
           index + 1,
         ],
       );
@@ -409,7 +433,7 @@ export async function getTemplateQuestions(templateId) {
 
   const [questions] = await pool.execute(
     `SELECT id, question_text AS questionText, question_type AS questionType,
-        options_json AS options, is_required AS isRequired, question_order AS questionOrder
+        options_json AS options, is_required AS isRequired, validation_json AS validation, question_order AS questionOrder
      FROM template_questions
      WHERE template_id = ?
      ORDER BY question_order, id`,
@@ -421,8 +445,9 @@ export async function getTemplateQuestions(templateId) {
     templateName: template.name,
     questions: questions.map((item) => ({
       ...item,
-      options: typeof item.options === "string" ? JSON.parse(item.options || "[]") : item.options || [],
+      options: parseJsonField(item.options, []),
       isRequired: Boolean(item.isRequired),
+      validation: parseJsonField(item.validation, {}),
     })),
   };
 }

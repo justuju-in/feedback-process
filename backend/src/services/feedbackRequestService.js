@@ -281,7 +281,7 @@ export async function createFeedbackRequest({
     );
     const [templateQuestions] = await connection.execute(
       `SELECT id, question_text AS questionText, question_type AS questionType,
-          options_json AS options, is_required AS isRequired, question_order AS questionOrder
+          options_json AS options, is_required AS isRequired, validation_json AS validation, question_order AS questionOrder
        FROM template_questions
        WHERE template_id = ?
        ORDER BY question_order, id`,
@@ -290,8 +290,8 @@ export async function createFeedbackRequest({
     for (const question of templateQuestions) {
       await connection.execute(
         `INSERT INTO feedback_request_questions
-           (request_id, template_question_id, question_text, question_type, options_json, is_required, question_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+           (request_id, template_question_id, question_text, question_type, options_json, is_required, validation_json, question_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           result.insertId,
           question.id,
@@ -299,6 +299,7 @@ export async function createFeedbackRequest({
           question.questionType || "long_text",
           typeof question.options === "string" ? question.options : JSON.stringify(question.options || []),
           question.isRequired,
+          typeof question.validation === "string" ? question.validation : JSON.stringify(question.validation || {}),
           question.questionOrder,
         ],
       );
@@ -515,7 +516,7 @@ export async function getFeedbackRequestById(requestId) {
   // This lets templates improve without changing an open or past request.
   const [questions] = await pool.execute(
     `SELECT template_question_id AS id, question_text AS questionText, question_type AS questionType,
-       options_json AS options, is_required AS isRequired, question_order AS questionOrder
+       options_json AS options, is_required AS isRequired, validation_json AS validation, question_order AS questionOrder
      FROM feedback_request_questions
      WHERE request_id = ?
      ORDER BY question_order, id`,
@@ -598,6 +599,7 @@ export async function getFeedbackRequestById(requestId) {
     questions: questions.map((question) => ({
       ...question,
       options: typeof question.options === "string" ? JSON.parse(question.options || "[]") : question.options || [],
+      validation: typeof question.validation === "string" ? JSON.parse(question.validation || "{}") : question.validation || {},
       isRequired: Boolean(question.isRequired),
     })),
     answers,

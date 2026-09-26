@@ -30,19 +30,36 @@ const questionTypeOptions = [
   { value: "yes_no", label: "Yes / No" },
 ];
 const optionQuestionTypes = new Set(["dropdown", "radio", "checkbox"]);
+const textQuestionTypes = new Set(["short_text", "long_text"]);
 
 function emptyCustomQuestion() {
-  return { questionText: "", questionType: "long_text", options: ["", ""], isRequired: true };
+  return { questionText: "", questionType: "long_text", options: ["", ""], isRequired: true, validation: { minLength: "", maxLength: "" } };
 }
 
 function normalizeCustomQuestion(question) {
   if (typeof question === "string") return { ...emptyCustomQuestion(), questionText: question };
+  const validation = question?.validation && typeof question.validation === "object" ? question.validation : {};
   return {
     questionText: question?.questionText || "",
     questionType: question?.questionType || "long_text",
     options: Array.isArray(question?.options) && question.options.length ? question.options : ["", ""],
     isRequired: question?.isRequired !== false,
+    validation: {
+      minLength: validation.minLength ?? "",
+      maxLength: validation.maxLength ?? "",
+    },
   };
+}
+
+function cleanQuestionValidation(question) {
+  if (!textQuestionTypes.has(question.questionType)) return {};
+  const validation = question.validation || {};
+  const minLength = Number(validation.minLength);
+  const maxLength = Number(validation.maxLength);
+  const cleanValidation = {};
+  if (Number.isInteger(minLength) && minLength > 0) cleanValidation.minLength = minLength;
+  if (Number.isInteger(maxLength) && maxLength > 0) cleanValidation.maxLength = maxLength;
+  return cleanValidation;
 }
 
 function questionTypeLabel(questionType) {
@@ -1276,6 +1293,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
         options: optionQuestionTypes.has(question.questionType)
           ? question.options.map((option) => option.trim()).filter(Boolean)
           : [],
+        validation: cleanQuestionValidation(question),
       }))
       .filter((question) => question.questionText);
 
@@ -1502,6 +1520,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
                 {customQuestions.map((rawQuestion, index) => {
                   const question = normalizeCustomQuestion(rawQuestion);
                   const usesOptions = optionQuestionTypes.has(question.questionType);
+                  const usesTextValidation = textQuestionTypes.has(question.questionType);
                   return (
                     <div key={`custom-question-${index}`} className="grid gap-3 rounded-xl border border-slate-200 bg-white p-3">
                       <div className="grid gap-2 sm:grid-cols-[1fr_180px_auto]">
@@ -1562,6 +1581,30 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
                           >
                             Add option
                           </button>
+                        </div>
+                      ) : null}
+                      {usesTextValidation ? (
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <Field label="Minimum characters">
+                            <input
+                              className={`${fieldClass} min-h-10 py-2`}
+                              min="0"
+                              placeholder="No minimum"
+                              type="number"
+                              value={question.validation?.minLength ?? ""}
+                              onChange={(event) => updateCustomQuestion(index, "validation", { ...question.validation, minLength: event.target.value })}
+                            />
+                          </Field>
+                          <Field label="Maximum characters">
+                            <input
+                              className={`${fieldClass} min-h-10 py-2`}
+                              min="1"
+                              placeholder="No maximum"
+                              type="number"
+                              value={question.validation?.maxLength ?? ""}
+                              onChange={(event) => updateCustomQuestion(index, "validation", { ...question.validation, maxLength: event.target.value })}
+                            />
+                          </Field>
                         </div>
                       ) : null}
                     </div>
@@ -1926,6 +1969,13 @@ function QuestionAnswerControl({ canSubmit, question, value, rating, onChange, o
   const questionType = question.questionType || "long_text";
   const options = Array.isArray(question.options) ? question.options : [];
   const required = question.isRequired !== false;
+  const validation = question.validation && typeof question.validation === "object" ? question.validation : {};
+  const minLength = Number.isInteger(Number(validation.minLength)) && Number(validation.minLength) > 0 ? Number(validation.minLength) : undefined;
+  const maxLength = Number.isInteger(Number(validation.maxLength)) && Number(validation.maxLength) > 0 ? Number(validation.maxLength) : undefined;
+  const validationHelp = [
+    minLength ? `Min ${minLength} characters` : "",
+    maxLength ? `Max ${maxLength} characters` : "",
+  ].filter(Boolean).join(" · ");
 
   if (!canSubmit) {
     return (
@@ -1936,7 +1986,12 @@ function QuestionAnswerControl({ canSubmit, question, value, rating, onChange, o
   }
 
   if (questionType === "short_text") {
-    return <input className={`${fieldClass} border-slate-200 bg-slate-50/70 focus:bg-white`} value={value} onChange={(event) => onChange(event.target.value)} required={required} />;
+    return (
+      <div className="grid gap-1.5">
+        <input className={`${fieldClass} border-slate-200 bg-slate-50/70 focus:bg-white`} value={value} onChange={(event) => onChange(event.target.value)} required={required} minLength={minLength} maxLength={maxLength} />
+        {validationHelp ? <p className="text-xs font-medium text-slate-500">{validationHelp}{maxLength ? ` · ${String(value || "").length}/${maxLength}` : ""}</p> : null}
+      </div>
+    );
   }
 
   if (questionType === "dropdown") {
@@ -1998,12 +2053,17 @@ function QuestionAnswerControl({ canSubmit, question, value, rating, onChange, o
   }
 
   return (
-    <textarea
-      className={`${fieldClass} min-h-28 resize-y border-slate-200 bg-slate-50/70 leading-7 focus:bg-white`}
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      required={required}
-    />
+    <div className="grid gap-1.5">
+      <textarea
+        className={`${fieldClass} min-h-28 resize-y border-slate-200 bg-slate-50/70 leading-7 focus:bg-white`}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        required={required}
+        minLength={minLength}
+        maxLength={maxLength}
+      />
+      {validationHelp ? <p className="text-xs font-medium text-slate-500">{validationHelp}{maxLength ? ` · ${String(value || "").length}/${maxLength}` : ""}</p> : null}
+    </div>
   );
 }
 
