@@ -229,19 +229,35 @@ export async function createPasswordResetRequest({ email }) {
   const connection = await pool.getConnection();
 
   try {
+    await connection.beginTransaction();
     const [[user]] = await connection.execute(
-      "SELECT id, name, email FROM users WHERE email = ?",
+      "SELECT id, name, email FROM users WHERE email = ? FOR UPDATE",
       [normalizedEmail],
     );
 
     // Keep the same API response even when this email has no account.
-    if (!user) return;
+    if (!user) {
+      await connection.commit();
+      return;
+    }
+
+    // One valid reset token maps to one email. The user can safely refresh or
+    // press the button again without receiving duplicate reset messages.
+    const [[activeReset]] = await connection.execute(
+      `SELECT id FROM password_reset_tokens
+       WHERE user_id = ? AND used_at IS NULL AND expires_at > NOW()
+       LIMIT 1`,
+      [user.id],
+    );
+    if (activeReset) {
+      await connection.commit();
+      return;
+    }
 
     const token = crypto.randomBytes(32).toString("hex");
     const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
-    await connection.beginTransaction();
     await connection.execute(
       "DELETE FROM password_reset_tokens WHERE user_id = ? AND used_at IS NULL",
       [user.id],
@@ -256,19 +272,24 @@ export async function createPasswordResetRequest({ email }) {
     const frontendOrigin = getPrimaryFrontendOrigin();
     const resetUrl = `${frontendOrigin}/reset-password?token=${token}`;
 
-    try {
-      await sendPasswordResetEmail({
-        email: user.email,
-        name: user.name,
-        resetUrl,
-      });
-    } catch (error) {
-      await connection.execute(
-        "DELETE FROM password_reset_tokens WHERE token_hash = ?",
-        [tokenHash],
-      );
-      throw error;
-    }
+    // SMTP handshakes can take a few seconds. The reset token is already
+    // safely stored, so do not make the person wait for mail delivery before
+    // confirming the request. The mail helper retries short network failures.
+    void sendPasswordResetEmail({
+      email: user.email,
+      name: user.name,
+      resetUrl,
+    }).catch(async (error) => {
+      console.error("Could not deliver password reset email", error);
+      try {
+        await pool.execute(
+          "DELETE FROM password_reset_tokens WHERE token_hash = ?",
+          [tokenHash],
+        );
+      } catch (cleanupError) {
+        console.error("Could not remove undelivered password reset token", cleanupError);
+      }
+    });
   } catch (error) {
     await connection.rollback();
     throw error;

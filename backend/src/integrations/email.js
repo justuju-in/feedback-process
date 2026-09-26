@@ -2,6 +2,9 @@ import nodemailer from "nodemailer";
 
 import { ServiceError } from "../services/serviceError.js";
 
+const retryableNetworkCodes = new Set(["EAI_AGAIN", "EDNS", "ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "ESOCKET"]);
+const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
 function getEmailConfiguration() {
   const host = process.env.SMTP_HOST;
   const port = Number(process.env.SMTP_PORT || 587);
@@ -28,11 +31,28 @@ function createEmailTransporter(configuration) {
   });
 }
 
+// A short DNS or SMTP outage must not turn registration or password recovery
+// into an immediate 500 error.
+async function sendWithRetry(transporter, message) {
+  const attempts = Number(process.env.SMTP_SEND_ATTEMPTS || 3);
+  const retryDelayMilliseconds = Number(process.env.SMTP_RETRY_DELAY_MS || 1_000);
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await transporter.sendMail(message);
+    } catch (error) {
+      if (!retryableNetworkCodes.has(error?.code) || attempt === attempts) throw error;
+      console.warn(`Email delivery attempt ${attempt}/${attempts} failed (${error.code}); retrying.`);
+      await sleep(retryDelayMilliseconds * attempt);
+    }
+  }
+}
+
 export async function sendPasswordResetEmail({ email, name, resetUrl }) {
   const configuration = getEmailConfiguration();
   const transporter = createEmailTransporter(configuration);
 
-  await transporter.sendMail({
+  await sendWithRetry(transporter, {
     from: `Feedback Process <${configuration.from}>`,
     to: email,
     subject: "Reset your Feedback Process password",
@@ -50,7 +70,7 @@ export async function sendPasswordResetEmail({ email, name, resetUrl }) {
 export async function sendEmailVerificationEmail({ email, name, verificationUrl }) {
   const configuration = getEmailConfiguration();
   const transporter = createEmailTransporter(configuration);
-  await transporter.sendMail({
+  await sendWithRetry(transporter, {
     from: `Feedback <${configuration.from}>`,
     to: email,
     subject: "Verify your Feedback email address",
@@ -66,7 +86,7 @@ export async function sendFeedbackEmail({ email, name, subject, message, actionU
   const transporter = createEmailTransporter(configuration);
   const safeMessage = String(message || "");
   const linkMarkup = actionUrl ? `<p><a href="${actionUrl}">Open Feedback Process</a></p>` : "";
-  await transporter.sendMail({
+  await sendWithRetry(transporter, {
     from: `Feedback Process <${configuration.from}>`,
     to: email,
     subject,

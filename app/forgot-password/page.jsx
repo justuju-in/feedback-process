@@ -21,7 +21,7 @@ export default function ForgotPasswordPage() {
 
   async function handleSubmit(event) {
     event.preventDefault();
-    setError(""); setMessage(""); setLoading(true);
+    setError(""); setMessage("Creating your secure reset link…"); setLoading(true);
     try {
       const response = await fetch(`${API_URL}/auth/forgot-password`, {
         method: "POST", credentials: "include",
@@ -30,8 +30,8 @@ export default function ForgotPasswordPage() {
       });
       const data = await readJson(response);
       if (!response.ok) throw new Error(data.message || "Could not create reset link");
-      setMessage("If this email is registered, a password reset link has been sent. Please check your inbox.");
-    } catch (err) { setError(err.message); }
+      setMessage("If this email is registered, a password reset email is on its way. Please check your inbox.");
+    } catch (err) { setMessage(""); setError(err.message); }
     finally { setLoading(false); }
   }
 

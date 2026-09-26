@@ -23,6 +23,9 @@ services:
     build:
       context: ./backend
     restart: unless-stopped
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     depends_on:
       database:
         condition: service_healthy
@@ -46,6 +49,8 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       EMAIL_FROM: ${EMAIL_FROM:-}
+      SMTP_SEND_ATTEMPTS: ${SMTP_SEND_ATTEMPTS:-3}
+      SMTP_RETRY_DELAY_MS: ${SMTP_RETRY_DELAY_MS:-1000}
     ports:
       - "127.0.0.1:5100:5000"
     networks:

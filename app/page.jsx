@@ -1940,7 +1940,7 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
           {!wasStopped ? template.questions.map((question, index) => (
             <Field key={question.id} label={<span className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">{index + 1}</span><span>{question.questionText}</span></span>}>
               <textarea
-                className={`${fieldClass} min-h-28 resize-y border-slate-200 bg-slate-50/70 leading-7 focus:bg-white disabled:bg-surface disabled:text-muted`}
+                className={`${fieldClass} min-h-14 resize-y border-slate-200 bg-slate-50/70 leading-7 focus:bg-white disabled:bg-surface disabled:text-muted`}
                 value={answers[question.id]?.answer ?? ""}
                 disabled={!canSubmit}
                 onChange={(event) => setAnswers({ ...answers, [question.id]: { ...(answers[question.id] || {}), answer: event.target.value } })}
