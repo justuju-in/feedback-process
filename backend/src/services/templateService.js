@@ -6,8 +6,8 @@ const questionTypes = new Set(["short_text", "long_text", "dropdown", "radio", "
 const optionQuestionTypes = new Set(["dropdown", "radio", "checkbox"]);
 const textQuestionTypes = new Set(["short_text", "long_text"]);
 
-function question(questionText, questionType = "long_text", options = [], isRequired = true, validation = {}) {
-  return { questionText, questionType, options, isRequired, validation };
+function question(questionText, questionType = "long_text", options = [], isRequired = true, validation = {}, helpText = "") {
+  return { questionText, questionType, options, isRequired, validation, helpText };
 }
 
 const builtInTemplates = [
@@ -69,7 +69,7 @@ const builtInTemplates = [
       question("Current confidence level", "radio", ["Low", "Medium", "High"]),
       question("Which skills should be practised next?", "checkbox", ["Concept clarity", "Hands-on practice", "Debugging", "Communication", "Documentation"]),
       question("How would you rate the current progress?", "rating"),
-      question("What should be the next clear action?", "long_text", [], true, { minLength: 20, maxLength: 500 }),
+      question("What should be the next clear action?", "long_text", [], true, { minLength: 20, maxLength: 500 }, "Write one specific action the learner can do this week."),
     ],
   },
   {
@@ -178,9 +178,10 @@ export async function ensureBuiltInTemplates() {
 
         if (existingQuestion) {
           await connection.execute(
-            "UPDATE template_questions SET question_text = ?, question_type = ?, options_json = ?, is_required = ?, validation_json = ? WHERE id = ?",
+            "UPDATE template_questions SET question_text = ?, help_text = ?, question_type = ?, options_json = ?, is_required = ?, validation_json = ? WHERE id = ?",
             [
               questionDetails.questionText,
+              questionDetails.helpText,
               questionDetails.questionType,
               JSON.stringify(questionDetails.options),
               questionDetails.isRequired,
@@ -191,11 +192,12 @@ export async function ensureBuiltInTemplates() {
         } else {
           await connection.execute(
             `INSERT INTO template_questions
-               (template_id, question_text, question_type, options_json, is_required, validation_json, question_order)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+               (template_id, question_text, help_text, question_type, options_json, is_required, validation_json, question_order)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               templateId,
               questionDetails.questionText,
+              questionDetails.helpText,
               questionDetails.questionType,
               JSON.stringify(questionDetails.options),
               questionDetails.isRequired,
@@ -224,6 +226,7 @@ function normalizeTemplateQuestions(questions) {
     .map((item) => {
       const isObjectQuestion = item && typeof item === "object" && !Array.isArray(item);
       const questionText = String(isObjectQuestion ? item.questionText ?? item.text ?? item.label ?? "" : item || "").trim();
+      const helpText = String(isObjectQuestion ? item.helpText ?? item.description ?? item.hint ?? "" : "").trim() || null;
       if (!questionText) return null;
 
       const questionType = String(isObjectQuestion ? item.questionType ?? item.type ?? "long_text" : "long_text").trim() || "long_text";
@@ -240,6 +243,7 @@ function normalizeTemplateQuestions(questions) {
 
       return {
         questionText,
+        helpText,
         questionType,
         options: optionQuestionTypes.has(questionType) ? options.slice(0, 20) : [],
         isRequired: isObjectQuestion && typeof item.isRequired === "boolean" ? item.isRequired : true,
@@ -288,11 +292,12 @@ export async function createTemplate({ name, description, questions, actorId }) 
     for (const [index, questionDetails] of normalizedQuestions.entries()) {
       await connection.execute(
         `INSERT INTO template_questions
-           (template_id, question_text, question_type, options_json, is_required, validation_json, question_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+           (template_id, question_text, help_text, question_type, options_json, is_required, validation_json, question_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           templateId,
           questionDetails.questionText,
+          questionDetails.helpText,
           questionDetails.questionType,
           JSON.stringify(questionDetails.options),
           questionDetails.isRequired,
@@ -374,11 +379,12 @@ export async function updateTemplate({ templateId, name, description, questions,
     for (const [index, questionDetails] of normalizedQuestions.entries()) {
       await connection.execute(
         `INSERT INTO template_questions
-           (template_id, question_text, question_type, options_json, is_required, validation_json, question_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+           (template_id, question_text, help_text, question_type, options_json, is_required, validation_json, question_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           templateId,
           questionDetails.questionText,
+          questionDetails.helpText,
           questionDetails.questionType,
           JSON.stringify(questionDetails.options),
           questionDetails.isRequired,
@@ -432,7 +438,7 @@ export async function getTemplateQuestions(templateId) {
   }
 
   const [questions] = await pool.execute(
-    `SELECT id, question_text AS questionText, question_type AS questionType,
+    `SELECT id, question_text AS questionText, help_text AS helpText, question_type AS questionType,
         options_json AS options, is_required AS isRequired, validation_json AS validation, question_order AS questionOrder
      FROM template_questions
      WHERE template_id = ?

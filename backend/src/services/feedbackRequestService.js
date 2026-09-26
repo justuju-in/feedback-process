@@ -280,7 +280,7 @@ export async function createFeedbackRequest({
       [requesterId, giverId, receiverId, templateId, message || null, normalizedDueDate, normalizedPurpose, normalizedVisibility, normalizedIsAnonymous, isDirectFeedback],
     );
     const [templateQuestions] = await connection.execute(
-      `SELECT id, question_text AS questionText, question_type AS questionType,
+      `SELECT id, question_text AS questionText, help_text AS helpText, question_type AS questionType,
           options_json AS options, is_required AS isRequired, validation_json AS validation, question_order AS questionOrder
        FROM template_questions
        WHERE template_id = ?
@@ -290,12 +290,13 @@ export async function createFeedbackRequest({
     for (const question of templateQuestions) {
       await connection.execute(
         `INSERT INTO feedback_request_questions
-           (request_id, template_question_id, question_text, question_type, options_json, is_required, validation_json, question_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+           (request_id, template_question_id, question_text, help_text, question_type, options_json, is_required, validation_json, question_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           result.insertId,
           question.id,
           question.questionText,
+          question.helpText,
           question.questionType || "long_text",
           typeof question.options === "string" ? question.options : JSON.stringify(question.options || []),
           question.isRequired,
@@ -515,7 +516,7 @@ export async function getFeedbackRequestById(requestId) {
   // Each request keeps the question set that existed at creation time.
   // This lets templates improve without changing an open or past request.
   const [questions] = await pool.execute(
-    `SELECT template_question_id AS id, question_text AS questionText, question_type AS questionType,
+    `SELECT template_question_id AS id, question_text AS questionText, help_text AS helpText, question_type AS questionType,
        options_json AS options, is_required AS isRequired, validation_json AS validation, question_order AS questionOrder
      FROM feedback_request_questions
      WHERE request_id = ?

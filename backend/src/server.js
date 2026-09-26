@@ -107,6 +107,7 @@ async function startServer() {
       request_id INT NOT NULL,
       template_question_id INT NOT NULL,
       question_text TEXT NOT NULL,
+      help_text TEXT NULL,
       question_type VARCHAR(30) NOT NULL DEFAULT 'long_text',
       options_json JSON NULL,
       is_required BOOLEAN NOT NULL DEFAULT TRUE,
@@ -121,6 +122,7 @@ async function startServer() {
   );
 
   for (const [columnName, alterSql] of [
+    ["help_text", "ALTER TABLE template_questions ADD COLUMN help_text TEXT NULL AFTER question_text"],
     ["question_type", "ALTER TABLE template_questions ADD COLUMN question_type VARCHAR(30) NOT NULL DEFAULT 'long_text' AFTER question_text"],
     ["options_json", "ALTER TABLE template_questions ADD COLUMN options_json JSON NULL AFTER question_type"],
     ["is_required", "ALTER TABLE template_questions ADD COLUMN is_required BOOLEAN NOT NULL DEFAULT TRUE AFTER options_json"],
@@ -135,6 +137,7 @@ async function startServer() {
   }
 
   for (const [columnName, alterSql] of [
+    ["help_text", "ALTER TABLE feedback_request_questions ADD COLUMN help_text TEXT NULL AFTER question_text"],
     ["question_type", "ALTER TABLE feedback_request_questions ADD COLUMN question_type VARCHAR(30) NOT NULL DEFAULT 'long_text' AFTER question_text"],
     ["options_json", "ALTER TABLE feedback_request_questions ADD COLUMN options_json JSON NULL AFTER question_type"],
     ["is_required", "ALTER TABLE feedback_request_questions ADD COLUMN is_required BOOLEAN NOT NULL DEFAULT TRUE AFTER options_json"],
@@ -152,8 +155,8 @@ async function startServer() {
   // already-existing questions. This runs before built-in templates are updated.
   await getDatabasePool().execute(
     `INSERT INTO feedback_request_questions
-       (request_id, template_question_id, question_text, question_type, options_json, is_required, validation_json, question_order)
-     SELECT request.id, question.id, question.question_text, question.question_type, question.options_json, question.is_required, question.validation_json, question.question_order
+       (request_id, template_question_id, question_text, help_text, question_type, options_json, is_required, validation_json, question_order)
+     SELECT request.id, question.id, question.question_text, question.help_text, question.question_type, question.options_json, question.is_required, question.validation_json, question.question_order
      FROM feedback_requests AS request
      JOIN template_questions AS question ON question.template_id = request.template_id
      WHERE NOT EXISTS (
@@ -204,6 +207,34 @@ async function startServer() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (request_id) REFERENCES feedback_requests(id),
       FOREIGN KEY (added_by) REFERENCES users(id)
+    )`,
+  );
+
+  await getDatabasePool().execute(
+    `CREATE TABLE IF NOT EXISTS feedback_follow_ups (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      request_id INT NOT NULL,
+      details TEXT NOT NULL,
+      owner_id INT NOT NULL,
+      due_date DATE NULL,
+      status VARCHAR(30) NOT NULL DEFAULT 'open',
+      progress_note TEXT NULL,
+      completed_at TIMESTAMP NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (request_id) REFERENCES feedback_requests(id),
+      FOREIGN KEY (owner_id) REFERENCES users(id)
+    )`,
+  );
+
+  await getDatabasePool().execute(
+    `CREATE TABLE IF NOT EXISTS feedback_follow_up_participants (
+      follow_up_id INT NOT NULL,
+      user_id INT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (follow_up_id, user_id),
+      FOREIGN KEY (follow_up_id) REFERENCES feedback_follow_ups(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
     )`,
   );
 

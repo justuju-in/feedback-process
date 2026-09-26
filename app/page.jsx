@@ -33,7 +33,7 @@ const optionQuestionTypes = new Set(["dropdown", "radio", "checkbox"]);
 const textQuestionTypes = new Set(["short_text", "long_text"]);
 
 function emptyCustomQuestion() {
-  return { questionText: "", questionType: "long_text", options: ["", ""], isRequired: true, validation: { minLength: "", maxLength: "" } };
+  return { questionText: "", helpText: "", questionType: "long_text", options: ["", ""], isRequired: true, validation: { minLength: "", maxLength: "" } };
 }
 
 function normalizeCustomQuestion(question) {
@@ -41,6 +41,7 @@ function normalizeCustomQuestion(question) {
   const validation = question?.validation && typeof question.validation === "object" ? question.validation : {};
   return {
     questionText: question?.questionText || "",
+    helpText: question?.helpText || "",
     questionType: question?.questionType || "long_text",
     options: Array.isArray(question?.options) && question.options.length ? question.options : ["", ""],
     isRequired: question?.isRequired !== false,
@@ -1290,6 +1291,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
       .map((question) => ({
         ...question,
         questionText: question.questionText.trim(),
+        helpText: question.helpText.trim(),
         options: optionQuestionTypes.has(question.questionType)
           ? question.options.map((option) => option.trim()).filter(Boolean)
           : [],
@@ -1408,7 +1410,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
           <p className="text-sm font-bold text-slate-900">Questions the feedback giver will answer</p>
           <p className="mt-1 text-sm text-muted">Preview only — these questions are sent with this request.</p>
           {isLoadingTemplatePreview ? <p className="mt-3 text-sm text-muted">Loading questions…</p> : templatePreviewQuestions.length ? <ol className="mt-3 grid gap-2">
-            {templatePreviewQuestions.map((question, index) => <li className="flex gap-2 text-sm text-slate-700" key={question.id || index}><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-blue-700">{index + 1}</span><span>{question.questionText}<span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-500">{questionTypeLabel(question.questionType)}</span></span></li>)}
+            {templatePreviewQuestions.map((question, index) => <li className="flex gap-2 text-sm text-slate-700" key={question.id || index}><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-blue-700">{index + 1}</span><span>{question.questionText}<span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-500">{questionTypeLabel(question.questionType)}</span>{question.helpText ? <span className="mt-1 block text-xs font-medium text-slate-500">{question.helpText}</span> : null}</span></li>)}
           </ol> : <p className="mt-3 text-sm text-muted">No questions are available for this feedback type.</p>}
         </section> : null}
 
@@ -1548,6 +1550,12 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
                           </button>
                         ) : null}
                       </div>
+                      <input
+                        className={`${fieldClass} min-h-10 py-2 text-sm`}
+                        placeholder="Question description or help text (optional)"
+                        value={question.helpText}
+                        onChange={(event) => updateCustomQuestion(index, "helpText", event.target.value)}
+                      />
                       <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
                         <input
                           className="h-4 w-4 accent-blue-700"
@@ -2182,7 +2190,7 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
           </section> : null}
           {request.attachments?.length ? <section className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="font-semibold text-slate-900">Shared links</p><ul className="mt-2 grid gap-2">{request.attachments.map((attachment) => <li key={attachment.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-3 py-2 text-sm"><span><span className="font-semibold text-slate-800">{attachment.label}</span><span className="ml-2 text-slate-500">added by {attachment.addedByName}</span></span><a className="font-semibold text-blue-700 hover:underline" href={attachment.url} target="_blank" rel="noreferrer">Open link</a></li>)}</ul></section> : null}
           {!wasStopped ? template.questions.map((question, index) => (
-            <Field key={question.id} label={<span className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">{index + 1}</span><span>{question.questionText}{question.isRequired === false ? <span className="ml-2 text-xs font-semibold text-slate-400">Optional</span> : null}</span></span>}>
+            <Field key={question.id} label={<span className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">{index + 1}</span><span>{question.questionText}{question.isRequired === false ? <span className="ml-2 text-xs font-semibold text-slate-400">Optional</span> : null}{question.helpText ? <span className="mt-1 block text-sm font-normal text-slate-500">{question.helpText}</span> : null}</span></span>}>
               <QuestionAnswerControl
                 canSubmit={canSubmit}
                 question={question}

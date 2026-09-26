@@ -162,6 +162,7 @@ CREATE TABLE IF NOT EXISTS template_questions (
   id INT AUTO_INCREMENT PRIMARY KEY,
   template_id INT NOT NULL,
   question_text TEXT NOT NULL,
+  help_text TEXT NULL,
   question_type VARCHAR(30) NOT NULL DEFAULT 'long_text',
   options_json JSON NULL,
   is_required BOOLEAN NOT NULL DEFAULT TRUE,
@@ -171,6 +172,21 @@ CREATE TABLE IF NOT EXISTS template_questions (
 
   FOREIGN KEY (template_id) REFERENCES feedback_templates(id)
 );
+
+SET @add_template_question_help_text_column = (
+  SELECT IF(
+    COUNT(*) = 0,
+    'ALTER TABLE template_questions ADD COLUMN help_text TEXT NULL AFTER question_text',
+    'SELECT 1'
+  )
+  FROM information_schema.columns
+  WHERE table_schema = DATABASE()
+    AND table_name = 'template_questions'
+    AND column_name = 'help_text'
+);
+PREPARE add_template_question_help_text_column_statement FROM @add_template_question_help_text_column;
+EXECUTE add_template_question_help_text_column_statement;
+DEALLOCATE PREPARE add_template_question_help_text_column_statement;
 
 SET @add_template_question_type_column = (
   SELECT IF(
