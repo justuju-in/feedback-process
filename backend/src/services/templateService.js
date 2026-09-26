@@ -2,6 +2,12 @@ import { getDatabasePool } from "../db/connection.js";
 import { ServiceError } from "./serviceError.js";
 
 const moderatorRoles = new Set(["admin"]);
+const questionTypes = new Set(["short_text", "long_text", "dropdown", "radio", "checkbox", "rating", "yes_no"]);
+const optionQuestionTypes = new Set(["dropdown", "radio", "checkbox"]);
+
+function question(questionText, questionType = "long_text", options = [], isRequired = true) {
+  return { questionText, questionType, options, isRequired };
+}
 
 const builtInTemplates = [
   {
@@ -46,13 +52,23 @@ const builtInTemplates = [
   },
   {
     name: "Growth Feedback",
-    description: "Feedback about professional growth, strengths, and development",
     description: "Feedback about professional growth, strengths, and development needs",
     questions: [
       "What progress or growth have you noticed?",
       "Which skill should this person develop next?",
       "What support or opportunity would help their growth?",
       "Which strength should this person continue building on?",
+    ],
+  },
+  {
+    name: "Custom Learning Check-in",
+    description: "Example custom template with dropdown, radio, checkbox, rating, and text fields",
+    questions: [
+      question("Which learning area is this feedback about?", "dropdown", ["Frontend", "Backend", "Database", "Communication", "Project work"]),
+      question("Current confidence level", "radio", ["Low", "Medium", "High"]),
+      question("Which skills should be practised next?", "checkbox", ["Concept clarity", "Hands-on practice", "Debugging", "Communication", "Documentation"]),
+      question("How would you rate the current progress?", "rating"),
+      question("What should be the next clear action?", "long_text"),
     ],
   },
   {
@@ -132,6 +148,7 @@ export async function ensureBuiltInTemplates() {
       );
 
       for (const [index, question] of template.questions.entries()) {
+        const questionDetails = normalizeTemplateQuestions([question])[0];
         const [[existingQuestion]] = await connection.execute(
           `SELECT id FROM template_questions
            WHERE template_id = ? AND question_order = ?
@@ -142,13 +159,28 @@ export async function ensureBuiltInTemplates() {
 
         if (existingQuestion) {
           await connection.execute(
-            "UPDATE template_questions SET question_text = ? WHERE id = ?",
-            [question, existingQuestion.id],
+            "UPDATE template_questions SET question_text = ?, question_type = ?, options_json = ?, is_required = ? WHERE id = ?",
+            [
+              questionDetails.questionText,
+              questionDetails.questionType,
+              JSON.stringify(questionDetails.options),
+              questionDetails.isRequired,
+              existingQuestion.id,
+            ],
           );
         } else {
           await connection.execute(
-            "INSERT INTO template_questions (template_id, question_text, question_order) VALUES (?, ?, ?)",
-            [templateId, question, index + 1],
+            `INSERT INTO template_questions
+               (template_id, question_text, question_type, options_json, is_required, question_order)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+              templateId,
+              questionDetails.questionText,
+              questionDetails.questionType,
+              JSON.stringify(questionDetails.options),
+              questionDetails.isRequired,
+              index + 1,
+            ],
           );
         }
       }
@@ -168,7 +200,30 @@ function normalizeTemplateQuestions(questions) {
   }
 
   const normalizedQuestions = questions
-    .map((question) => String(question || "").trim())
+    .map((item) => {
+      const isObjectQuestion = item && typeof item === "object" && !Array.isArray(item);
+      const questionText = String(isObjectQuestion ? item.questionText ?? item.text ?? item.label ?? "" : item || "").trim();
+      if (!questionText) return null;
+
+      const questionType = String(isObjectQuestion ? item.questionType ?? item.type ?? "long_text" : "long_text").trim() || "long_text";
+      if (!questionTypes.has(questionType)) {
+        throw new ServiceError(400, `Unsupported question type: ${questionType}`);
+      }
+
+      const options = Array.isArray(item?.options)
+        ? item.options.map((option) => String(option || "").trim()).filter(Boolean)
+        : [];
+      if (optionQuestionTypes.has(questionType) && options.length < 2) {
+        throw new ServiceError(400, `${questionType} questions need at least 2 options`);
+      }
+
+      return {
+        questionText,
+        questionType,
+        options: optionQuestionTypes.has(questionType) ? options.slice(0, 20) : [],
+        isRequired: isObjectQuestion && typeof item.isRequired === "boolean" ? item.isRequired : true,
+      };
+    })
     .filter(Boolean);
 
   if (normalizedQuestions.length < 1) {
@@ -208,11 +263,19 @@ export async function createTemplate({ name, description, questions, actorId }) 
 
     const templateId = templateResult.insertId;
 
-    for (const [index, questionText] of normalizedQuestions.entries()) {
+    for (const [index, questionDetails] of normalizedQuestions.entries()) {
       await connection.execute(
-        `INSERT INTO template_questions (template_id, question_text, question_order)
-         VALUES (?, ?, ?)`,
-        [templateId, questionText, index + 1],
+        `INSERT INTO template_questions
+           (template_id, question_text, question_type, options_json, is_required, question_order)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          templateId,
+          questionDetails.questionText,
+          questionDetails.questionType,
+          JSON.stringify(questionDetails.options),
+          questionDetails.isRequired,
+          index + 1,
+        ],
       );
     }
 
@@ -224,8 +287,8 @@ export async function createTemplate({ name, description, questions, actorId }) 
       description: templateDescription,
       createdBy: actorId,
       isActive: true,
-      questions: normalizedQuestions.map((questionText, index) => ({
-        questionText,
+      questions: normalizedQuestions.map((questionDetails, index) => ({
+        ...questionDetails,
         questionOrder: index + 1,
       })),
     };
@@ -285,14 +348,30 @@ export async function updateTemplate({ templateId, name, description, questions,
       [templateName, templateDescription, templateId],
     );
     await connection.execute("DELETE FROM template_questions WHERE template_id = ?", [templateId]);
-    for (const [index, questionText] of normalizedQuestions.entries()) {
+    for (const [index, questionDetails] of normalizedQuestions.entries()) {
       await connection.execute(
-        "INSERT INTO template_questions (template_id, question_text, question_order) VALUES (?, ?, ?)",
-        [templateId, questionText, index + 1],
+        `INSERT INTO template_questions
+           (template_id, question_text, question_type, options_json, is_required, question_order)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          templateId,
+          questionDetails.questionText,
+          questionDetails.questionType,
+          JSON.stringify(questionDetails.options),
+          questionDetails.isRequired,
+          index + 1,
+        ],
       );
     }
     await connection.commit();
-    return { id: templateId, name: templateName, description: templateDescription, createdBy: template.createdBy, isActive: template.isActive, questions: normalizedQuestions.map((questionText, index) => ({ questionText, questionOrder: index + 1 })) };
+    return {
+      id: templateId,
+      name: templateName,
+      description: templateDescription,
+      createdBy: template.createdBy,
+      isActive: template.isActive,
+      questions: normalizedQuestions.map((questionDetails, index) => ({ ...questionDetails, questionOrder: index + 1 })),
+    };
   } catch (error) {
     await connection.rollback();
     throw error;
@@ -329,7 +408,8 @@ export async function getTemplateQuestions(templateId) {
   }
 
   const [questions] = await pool.execute(
-    `SELECT id, question_text AS questionText, question_order AS questionOrder
+    `SELECT id, question_text AS questionText, question_type AS questionType,
+        options_json AS options, is_required AS isRequired, question_order AS questionOrder
      FROM template_questions
      WHERE template_id = ?
      ORDER BY question_order, id`,
@@ -339,6 +419,10 @@ export async function getTemplateQuestions(templateId) {
   return {
     templateId: template.id,
     templateName: template.name,
-    questions,
+    questions: questions.map((item) => ({
+      ...item,
+      options: typeof item.options === "string" ? JSON.parse(item.options || "[]") : item.options || [],
+      isRequired: Boolean(item.isRequired),
+    })),
   };
 }

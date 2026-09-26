@@ -107,6 +107,9 @@ async function startServer() {
       request_id INT NOT NULL,
       template_question_id INT NOT NULL,
       question_text TEXT NOT NULL,
+      question_type VARCHAR(30) NOT NULL DEFAULT 'long_text',
+      options_json JSON NULL,
+      is_required BOOLEAN NOT NULL DEFAULT TRUE,
       question_order INT NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       UNIQUE KEY unique_request_question (request_id, template_question_id),
@@ -116,12 +119,38 @@ async function startServer() {
     )`,
   );
 
+  for (const [columnName, alterSql] of [
+    ["question_type", "ALTER TABLE template_questions ADD COLUMN question_type VARCHAR(30) NOT NULL DEFAULT 'long_text' AFTER question_text"],
+    ["options_json", "ALTER TABLE template_questions ADD COLUMN options_json JSON NULL AFTER question_type"],
+    ["is_required", "ALTER TABLE template_questions ADD COLUMN is_required BOOLEAN NOT NULL DEFAULT TRUE AFTER options_json"],
+  ]) {
+    const [[column]] = await getDatabasePool().execute(
+      `SELECT COUNT(*) AS count FROM information_schema.columns
+       WHERE table_schema = DATABASE() AND table_name = 'template_questions' AND column_name = ?`,
+      [columnName],
+    );
+    if (!column.count) await getDatabasePool().execute(alterSql);
+  }
+
+  for (const [columnName, alterSql] of [
+    ["question_type", "ALTER TABLE feedback_request_questions ADD COLUMN question_type VARCHAR(30) NOT NULL DEFAULT 'long_text' AFTER question_text"],
+    ["options_json", "ALTER TABLE feedback_request_questions ADD COLUMN options_json JSON NULL AFTER question_type"],
+    ["is_required", "ALTER TABLE feedback_request_questions ADD COLUMN is_required BOOLEAN NOT NULL DEFAULT TRUE AFTER options_json"],
+  ]) {
+    const [[column]] = await getDatabasePool().execute(
+      `SELECT COUNT(*) AS count FROM information_schema.columns
+       WHERE table_schema = DATABASE() AND table_name = 'feedback_request_questions' AND column_name = ?`,
+      [columnName],
+    );
+    if (!column.count) await getDatabasePool().execute(alterSql);
+  }
+
   // Requests created before question snapshots were introduced keep their
   // already-existing questions. This runs before built-in templates are updated.
   await getDatabasePool().execute(
     `INSERT INTO feedback_request_questions
-       (request_id, template_question_id, question_text, question_order)
-     SELECT request.id, question.id, question.question_text, question.question_order
+       (request_id, template_question_id, question_text, question_type, options_json, is_required, question_order)
+     SELECT request.id, question.id, question.question_text, question.question_type, question.options_json, question.is_required, question.question_order
      FROM feedback_requests AS request
      JOIN template_questions AS question ON question.template_id = request.template_id
      WHERE NOT EXISTS (

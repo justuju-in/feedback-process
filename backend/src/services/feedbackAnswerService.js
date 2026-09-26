@@ -44,13 +44,18 @@ function normalizeAnswers(answers, questions) {
 
 function validateAnswers(normalizedAnswers, questions, requireText, isAnonymous = false) {
   const validQuestionIds = new Set(questions.map((question) => question.id));
+  const questionById = new Map(questions.map((question) => [question.id, question]));
   const usedQuestionIds = new Set();
   for (const item of normalizedAnswers) {
     if (!validQuestionIds.has(item.questionId)) throw new ServiceError(400, "Every answer must reference a question from the selected template");
     if (usedQuestionIds.has(item.questionId)) throw new ServiceError(400, "A question can only be answered once");
-    if (requireText && !item.answer) throw new ServiceError(400, "Answer text cannot be empty");
-    if (isAnonymous) validateAnonymousFeedbackText(item.answer);
-    else validateRespectfulFeedbackText(item.answer);
+    const question = questionById.get(item.questionId);
+    const isRequired = question?.isRequired !== false;
+    if (requireText && isRequired && !item.answer) throw new ServiceError(400, "Answer text cannot be empty");
+    if (item.answer) {
+      if (isAnonymous) validateAnonymousFeedbackText(item.answer);
+      else validateRespectfulFeedbackText(item.answer);
+    }
     if (item.rating !== null && (!Number.isInteger(item.rating) || item.rating < 1 || item.rating > 5)) throw new ServiceError(400, "Rating must be between 1 and 5");
     usedQuestionIds.add(item.questionId);
   }
@@ -58,7 +63,7 @@ function validateAnswers(normalizedAnswers, questions, requireText, isAnonymous 
 
 async function getQuestionsForRequest(executor, requestId, templateId) {
   const [snapshotQuestions] = await executor.execute(
-    `SELECT template_question_id AS id
+    `SELECT template_question_id AS id, is_required AS isRequired
      FROM feedback_request_questions
      WHERE request_id = ?
      ORDER BY question_order, id`,
@@ -68,7 +73,7 @@ async function getQuestionsForRequest(executor, requestId, templateId) {
 
   // Fallback for a request created before snapshots were introduced.
   const [templateQuestions] = await executor.execute(
-    `SELECT id
+    `SELECT id, is_required AS isRequired
      FROM template_questions
      WHERE template_id = ?
      ORDER BY question_order, id`,

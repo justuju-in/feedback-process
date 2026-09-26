@@ -162,11 +162,59 @@ CREATE TABLE IF NOT EXISTS template_questions (
   id INT AUTO_INCREMENT PRIMARY KEY,
   template_id INT NOT NULL,
   question_text TEXT NOT NULL,
+  question_type VARCHAR(30) NOT NULL DEFAULT 'long_text',
+  options_json JSON NULL,
+  is_required BOOLEAN NOT NULL DEFAULT TRUE,
   question_order INT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
   FOREIGN KEY (template_id) REFERENCES feedback_templates(id)
 );
+
+SET @add_template_question_type_column = (
+  SELECT IF(
+    COUNT(*) = 0,
+    'ALTER TABLE template_questions ADD COLUMN question_type VARCHAR(30) NOT NULL DEFAULT ''long_text'' AFTER question_text',
+    'SELECT 1'
+  )
+  FROM information_schema.columns
+  WHERE table_schema = DATABASE()
+    AND table_name = 'template_questions'
+    AND column_name = 'question_type'
+);
+PREPARE add_template_question_type_column_statement FROM @add_template_question_type_column;
+EXECUTE add_template_question_type_column_statement;
+DEALLOCATE PREPARE add_template_question_type_column_statement;
+
+SET @add_template_question_options_column = (
+  SELECT IF(
+    COUNT(*) = 0,
+    'ALTER TABLE template_questions ADD COLUMN options_json JSON NULL AFTER question_type',
+    'SELECT 1'
+  )
+  FROM information_schema.columns
+  WHERE table_schema = DATABASE()
+    AND table_name = 'template_questions'
+    AND column_name = 'options_json'
+);
+PREPARE add_template_question_options_column_statement FROM @add_template_question_options_column;
+EXECUTE add_template_question_options_column_statement;
+DEALLOCATE PREPARE add_template_question_options_column_statement;
+
+SET @add_template_question_required_column = (
+  SELECT IF(
+    COUNT(*) = 0,
+    'ALTER TABLE template_questions ADD COLUMN is_required BOOLEAN NOT NULL DEFAULT TRUE AFTER options_json',
+    'SELECT 1'
+  )
+  FROM information_schema.columns
+  WHERE table_schema = DATABASE()
+    AND table_name = 'template_questions'
+    AND column_name = 'is_required'
+);
+PREPARE add_template_question_required_column_statement FROM @add_template_question_required_column;
+EXECUTE add_template_question_required_column_statement;
+DEALLOCATE PREPARE add_template_question_required_column_statement;
 
 CREATE TABLE IF NOT EXISTS feedback_requests (
   id INT AUTO_INCREMENT PRIMARY KEY,

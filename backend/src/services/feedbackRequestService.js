@@ -280,7 +280,8 @@ export async function createFeedbackRequest({
       [requesterId, giverId, receiverId, templateId, message || null, normalizedDueDate, normalizedPurpose, normalizedVisibility, normalizedIsAnonymous, isDirectFeedback],
     );
     const [templateQuestions] = await connection.execute(
-      `SELECT id, question_text AS questionText, question_order AS questionOrder
+      `SELECT id, question_text AS questionText, question_type AS questionType,
+          options_json AS options, is_required AS isRequired, question_order AS questionOrder
        FROM template_questions
        WHERE template_id = ?
        ORDER BY question_order, id`,
@@ -289,9 +290,17 @@ export async function createFeedbackRequest({
     for (const question of templateQuestions) {
       await connection.execute(
         `INSERT INTO feedback_request_questions
-           (request_id, template_question_id, question_text, question_order)
-         VALUES (?, ?, ?, ?)`,
-        [result.insertId, question.id, question.questionText, question.questionOrder],
+           (request_id, template_question_id, question_text, question_type, options_json, is_required, question_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          result.insertId,
+          question.id,
+          question.questionText,
+          question.questionType || "long_text",
+          typeof question.options === "string" ? question.options : JSON.stringify(question.options || []),
+          question.isRequired,
+          question.questionOrder,
+        ],
       );
     }
     for (const viewerId of normalizedViewerIds) {
@@ -505,7 +514,8 @@ export async function getFeedbackRequestById(requestId) {
   // Each request keeps the question set that existed at creation time.
   // This lets templates improve without changing an open or past request.
   const [questions] = await pool.execute(
-    `SELECT template_question_id AS id, question_text AS questionText, question_order AS questionOrder
+    `SELECT template_question_id AS id, question_text AS questionText, question_type AS questionType,
+       options_json AS options, is_required AS isRequired, question_order AS questionOrder
      FROM feedback_request_questions
      WHERE request_id = ?
      ORDER BY question_order, id`,
@@ -521,7 +531,7 @@ export async function getFeedbackRequestById(requestId) {
        answer.rating,
        answer.created_at AS createdAt
      FROM feedback_answers AS answer
-     JOIN template_questions AS question ON question.id = answer.question_id
+    JOIN template_questions AS question ON question.id = answer.question_id
      WHERE answer.request_id = ?
      ORDER BY question.question_order, answer.id`,
     [requestId],
@@ -585,7 +595,11 @@ export async function getFeedbackRequestById(requestId) {
   return {
     ...request,
     viewers,
-    questions,
+    questions: questions.map((question) => ({
+      ...question,
+      options: typeof question.options === "string" ? JSON.parse(question.options || "[]") : question.options || [],
+      isRequired: Boolean(question.isRequired),
+    })),
     answers,
     draft: draft ? { ...draft, answers: typeof draft.answers === "string" ? JSON.parse(draft.answers) : draft.answers } : null,
     followUps,

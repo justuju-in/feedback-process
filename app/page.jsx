@@ -20,6 +20,34 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
 const primaryButton = "btn btn-primary";
 const secondaryButton = "btn btn-secondary";
 const fieldClass = "field-control";
+const questionTypeOptions = [
+  { value: "short_text", label: "Short answer" },
+  { value: "long_text", label: "Long answer" },
+  { value: "dropdown", label: "Dropdown" },
+  { value: "radio", label: "Radio buttons" },
+  { value: "checkbox", label: "Checkboxes" },
+  { value: "rating", label: "Rating" },
+  { value: "yes_no", label: "Yes / No" },
+];
+const optionQuestionTypes = new Set(["dropdown", "radio", "checkbox"]);
+
+function emptyCustomQuestion() {
+  return { questionText: "", questionType: "long_text", options: ["", ""], isRequired: true };
+}
+
+function normalizeCustomQuestion(question) {
+  if (typeof question === "string") return { ...emptyCustomQuestion(), questionText: question };
+  return {
+    questionText: question?.questionText || "",
+    questionType: question?.questionType || "long_text",
+    options: Array.isArray(question?.options) && question.options.length ? question.options : ["", ""],
+    isRequired: question?.isRequired !== false,
+  };
+}
+
+function questionTypeLabel(questionType) {
+  return questionTypeOptions.find((item) => item.value === questionType)?.label || "Long answer";
+}
 
 async function api(path, options) {
   const response = await fetch(`${API_URL}${path}`, {
@@ -1052,7 +1080,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
   const [savedTemplateName, setSavedTemplateName] = useState("");
   const [customTemplateName, setCustomTemplateName] = useState("");
   const [customTemplateDescription, setCustomTemplateDescription] = useState("");
-  const [customQuestions, setCustomQuestions] = useState(["", "", ""]);
+  const [customQuestions, setCustomQuestions] = useState([emptyCustomQuestion()]);
   const [isSavingTemplate, setIsSavingTemplate] = useState(false);
   const [editingTemplateId, setEditingTemplateId] = useState(null);
   const [isManageTemplatesOpen, setIsManageTemplatesOpen] = useState(false);
@@ -1219,20 +1247,20 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
     setEditingTemplateId(null);
     setCustomTemplateName("");
     setCustomTemplateDescription("");
-    setCustomQuestions(["", "", ""]);
+    setCustomQuestions([emptyCustomQuestion()]);
     setSavedTemplateName("");
     if (templates.find((template) => template.id === Number(nextTemplateId))?.name !== "Group Feedback") setGiverIds([]);
     setNotice(null);
   }
 
-  function updateCustomQuestion(index, value) {
+  function updateCustomQuestion(index, field, value) {
     setCustomQuestions((questions) => questions.map((question, questionIndex) => (
-      questionIndex === index ? value : question
+      questionIndex === index ? { ...question, [field]: value } : question
     )));
   }
 
   function addCustomQuestion() {
-    setCustomQuestions((questions) => [...questions, ""]);
+    setCustomQuestions((questions) => [...questions, emptyCustomQuestion()]);
   }
 
   function removeCustomQuestion(index) {
@@ -1240,7 +1268,16 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
   }
 
   async function saveCustomTemplate() {
-    const questions = customQuestions.map((question) => question.trim()).filter(Boolean);
+    const questions = customQuestions
+      .map(normalizeCustomQuestion)
+      .map((question) => ({
+        ...question,
+        questionText: question.questionText.trim(),
+        options: optionQuestionTypes.has(question.questionType)
+          ? question.options.map((option) => option.trim()).filter(Boolean)
+          : [],
+      }))
+      .filter((question) => question.questionText);
 
     if (customTemplateName.trim().length < 3) {
       setNoticeTone("error");
@@ -1274,7 +1311,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
     setSavedTemplateName(result.template.name);
     setCustomTemplateName("");
     setCustomTemplateDescription("");
-    setCustomQuestions(["", "", ""]);
+    setCustomQuestions([emptyCustomQuestion()]);
     setEditingTemplateId(null);
     setIsCustomTemplateOpen(false);
     setNoticeTone("success");
@@ -1292,7 +1329,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
       setEditingTemplateId(template.id);
       setCustomTemplateName(template.name);
       setCustomTemplateDescription(template.description || "");
-      setCustomQuestions(data.questions.map((question) => question.questionText));
+      setCustomQuestions(data.questions.map(normalizeCustomQuestion));
       setIsCustomTemplateOpen(true);
       setNotice(null);
     } catch (templateError) {
@@ -1353,7 +1390,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
           <p className="text-sm font-bold text-slate-900">Questions the feedback giver will answer</p>
           <p className="mt-1 text-sm text-muted">Preview only — these questions are sent with this request.</p>
           {isLoadingTemplatePreview ? <p className="mt-3 text-sm text-muted">Loading questions…</p> : templatePreviewQuestions.length ? <ol className="mt-3 grid gap-2">
-            {templatePreviewQuestions.map((question, index) => <li className="flex gap-2 text-sm text-slate-700" key={question.id || index}><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-blue-700">{index + 1}</span><span>{question.questionText}</span></li>)}
+            {templatePreviewQuestions.map((question, index) => <li className="flex gap-2 text-sm text-slate-700" key={question.id || index}><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-blue-700">{index + 1}</span><span>{question.questionText}<span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-500">{questionTypeLabel(question.questionType)}</span></span></li>)}
           </ol> : <p className="mt-3 text-sm text-muted">No questions are available for this feedback type.</p>}
         </section> : null}
 
@@ -1418,7 +1455,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
                 setEditingTemplateId(null);
                 setCustomTemplateName("");
                 setCustomTemplateDescription("");
-                setCustomQuestions(["", "", ""]);
+                setCustomQuestions([emptyCustomQuestion()]);
                 setSavedTemplateName("");
                 setNotice(null);
               }}
@@ -1462,26 +1499,74 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
                   </button>
                 </div>
 
-                {customQuestions.map((question, index) => (
-                  <div key={`custom-question-${index}`} className="flex gap-2">
-                    <input
-                      className={fieldClass}
-                      placeholder={`Question ${index + 1}`}
-                      value={question}
-                      onChange={(event) => updateCustomQuestion(index, event.target.value)}
-                    />
-                    {customQuestions.length > 1 ? (
-                      <button
-                        className="min-h-12 rounded-lg border border-red-200 bg-white px-3 text-sm font-semibold text-red-600 transition hover:bg-red-50"
-                        type="button"
-                        onClick={() => removeCustomQuestion(index)}
-                        aria-label={`Remove question ${index + 1}`}
-                      >
-                        Remove
-                      </button>
-                    ) : null}
-                  </div>
-                ))}
+                {customQuestions.map((rawQuestion, index) => {
+                  const question = normalizeCustomQuestion(rawQuestion);
+                  const usesOptions = optionQuestionTypes.has(question.questionType);
+                  return (
+                    <div key={`custom-question-${index}`} className="grid gap-3 rounded-xl border border-slate-200 bg-white p-3">
+                      <div className="grid gap-2 sm:grid-cols-[1fr_180px_auto]">
+                        <input
+                          className={fieldClass}
+                          placeholder={`Question ${index + 1}`}
+                          value={question.questionText}
+                          onChange={(event) => updateCustomQuestion(index, "questionText", event.target.value)}
+                        />
+                        <select
+                          className={fieldClass}
+                          value={question.questionType}
+                          onChange={(event) => updateCustomQuestion(index, "questionType", event.target.value)}
+                        >
+                          {questionTypeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                        </select>
+                        {customQuestions.length > 1 ? (
+                          <button
+                            className="min-h-12 rounded-lg border border-red-200 bg-white px-3 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                            type="button"
+                            onClick={() => removeCustomQuestion(index)}
+                            aria-label={`Remove question ${index + 1}`}
+                          >
+                            Remove
+                          </button>
+                        ) : null}
+                      </div>
+                      <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                        <input
+                          className="h-4 w-4 accent-blue-700"
+                          type="checkbox"
+                          checked={question.isRequired}
+                          onChange={(event) => updateCustomQuestion(index, "isRequired", event.target.checked)}
+                        />
+                        Required question
+                      </label>
+                      {usesOptions ? (
+                        <div className="grid gap-2">
+                          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Options</p>
+                          {question.options.map((option, optionIndex) => (
+                            <input
+                              className={`${fieldClass} min-h-10 py-2`}
+                              key={`custom-question-${index}-option-${optionIndex}`}
+                              placeholder={`Option ${optionIndex + 1}`}
+                              value={option}
+                              onChange={(event) => {
+                                const nextOptions = [...question.options];
+                                nextOptions[optionIndex] = event.target.value;
+                                updateCustomQuestion(index, "options", nextOptions);
+                              }}
+                            />
+                          ))}
+                          <button
+                            className="justify-self-start text-sm font-bold text-blue-700 hover:underline"
+                            type="button"
+                            onClick={() => updateCustomQuestion(index, "options", [...question.options, ""])}
+                            disabled={question.options.length >= 20}
+                          >
+                            Add option
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
 
               <button
@@ -1833,6 +1918,95 @@ function InlineDatePicker({ dueDate, month, onMonthChange, onChange, today }) {
   );
 }
 
+function checkboxValues(value) {
+  return String(value || "").split("\n").filter(Boolean);
+}
+
+function QuestionAnswerControl({ canSubmit, question, value, rating, onChange, onRating }) {
+  const questionType = question.questionType || "long_text";
+  const options = Array.isArray(question.options) ? question.options : [];
+  const required = question.isRequired !== false;
+
+  if (!canSubmit) {
+    return (
+      <div className="min-h-12 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        {questionType === "rating" ? (value ? `${value} / 5` : "No rating") : value ? <span className="whitespace-pre-wrap">{value}</span> : <span className="text-slate-400">No answer</span>}
+      </div>
+    );
+  }
+
+  if (questionType === "short_text") {
+    return <input className={`${fieldClass} border-slate-200 bg-slate-50/70 focus:bg-white`} value={value} onChange={(event) => onChange(event.target.value)} required={required} />;
+  }
+
+  if (questionType === "dropdown") {
+    return (
+      <select className={`${fieldClass} border-slate-200 bg-slate-50/70 focus:bg-white`} value={value} onChange={(event) => onChange(event.target.value)} required={required}>
+        <option value="">Choose an option</option>
+        {options.map((option) => <option key={option} value={option}>{option}</option>)}
+      </select>
+    );
+  }
+
+  if (questionType === "radio" || questionType === "yes_no") {
+    const choices = questionType === "yes_no" ? ["Yes", "No"] : options;
+    return (
+      <div className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+        {choices.map((option) => (
+          <label className="flex items-center gap-3 rounded-lg bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm" key={option}>
+            <input className="h-4 w-4 accent-blue-700" type="radio" name={`question-${question.id}`} value={option} checked={value === option} onChange={() => onChange(option)} required={required && !value} />
+            {option}
+          </label>
+        ))}
+      </div>
+    );
+  }
+
+  if (questionType === "checkbox") {
+    const selectedValues = checkboxValues(value);
+    return (
+      <div className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+        {options.map((option) => {
+          const selected = selectedValues.includes(option);
+          return (
+            <label className="flex items-center gap-3 rounded-lg bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm" key={option}>
+              <input
+                className="h-4 w-4 accent-blue-700"
+                type="checkbox"
+                checked={selected}
+                onChange={() => {
+                  const nextValues = selected ? selectedValues.filter((item) => item !== option) : [...selectedValues, option];
+                  onChange(nextValues.join("\n"));
+                }}
+              />
+              {option}
+            </label>
+          );
+        })}
+        {required && !selectedValues.length ? <p className="text-xs font-medium text-slate-500">Select at least one option.</p> : null}
+      </div>
+    );
+  }
+
+  if (questionType === "rating") {
+    return (
+      <div className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+        {[1, 2, 3, 4, 5].map((score) => <button key={score} className={`h-10 w-10 rounded-full border font-bold transition ${Number(value) === score ? "border-amber-400 bg-amber-400 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-amber-300"}`} type="button" onClick={() => { onChange(String(score)); onRating(score); }}>{score}</button>)}
+        {required && !value ? <p className="basis-full text-xs font-medium text-slate-500">Choose a rating.</p> : null}
+      </div>
+    );
+  }
+
+  return (
+    <textarea
+      className={`${fieldClass} min-h-28 resize-y border-slate-200 bg-slate-50/70 leading-7 focus:bg-white`}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      required={required}
+    />
+  );
+}
+
 function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSubmit, onSaveDraft, onAddAttachment, onAcknowledge, onCreateFollowUp, onUpdateFollowUp, onDiscussion, onReport, onModerate }) {
   const template = request.template;
   const isRequester = Number(currentUserId) === Number(request.requesterId);
@@ -1860,13 +2034,23 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
   const [attachmentNotice, setAttachmentNotice] = useState("");
   const canModerate = String(currentUserRole).toLowerCase() === "admin";
 
+  function answerPayload(question) {
+    const savedAnswer = answers[question.id] || {};
+    const answerText = savedAnswer.answer || "";
+    return {
+      questionId: question.id,
+      answer: answerText,
+      rating: question.questionType === "rating" ? Number(answerText) || null : savedAnswer.rating || null,
+    };
+  }
+
   async function submit(event) {
     event.preventDefault();
-    await onSubmit(request.id, template.questions.map((question) => ({ questionId: question.id, answer: answers[question.id]?.answer || "", rating: answers[question.id]?.rating || null })));
+    await onSubmit(request.id, template.questions.map(answerPayload));
   }
 
   async function saveCurrentDraft() {
-    await onSaveDraft(request.id, template.questions.map((question) => ({ questionId: question.id, answer: answers[question.id]?.answer || "", rating: answers[question.id]?.rating || null })));
+    await onSaveDraft(request.id, template.questions.map(answerPayload));
   }
 
   async function addSupportingLink() {
@@ -1938,16 +2122,17 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
           </section> : null}
           {request.attachments?.length ? <section className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="font-semibold text-slate-900">Shared links</p><ul className="mt-2 grid gap-2">{request.attachments.map((attachment) => <li key={attachment.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-3 py-2 text-sm"><span><span className="font-semibold text-slate-800">{attachment.label}</span><span className="ml-2 text-slate-500">added by {attachment.addedByName}</span></span><a className="font-semibold text-blue-700 hover:underline" href={attachment.url} target="_blank" rel="noreferrer">Open link</a></li>)}</ul></section> : null}
           {!wasStopped ? template.questions.map((question, index) => (
-            <Field key={question.id} label={<span className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">{index + 1}</span><span>{question.questionText}</span></span>}>
-              <textarea
-                className={`${fieldClass} min-h-28 resize-y border-slate-200 bg-slate-50/70 leading-7 focus:bg-white disabled:bg-surface disabled:text-muted`}
+            <Field key={question.id} label={<span className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">{index + 1}</span><span>{question.questionText}{question.isRequired === false ? <span className="ml-2 text-xs font-semibold text-slate-400">Optional</span> : null}</span></span>}>
+              <QuestionAnswerControl
+                canSubmit={canSubmit}
+                question={question}
                 value={answers[question.id]?.answer ?? ""}
-                disabled={!canSubmit}
-                onChange={(event) => setAnswers({ ...answers, [question.id]: { ...(answers[question.id] || {}), answer: event.target.value } })}
-                required
+                rating={answers[question.id]?.rating ?? null}
+                onChange={(value) => setAnswers({ ...answers, [question.id]: { ...(answers[question.id] || {}), answer: value } })}
+                onRating={(rating) => setAnswers({ ...answers, [question.id]: { ...(answers[question.id] || {}), rating } })}
               />
-              {canSubmit ? <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600"><span className="font-semibold">Optional rating</span>{[1, 2, 3, 4, 5].map((rating) => <button key={rating} className={`h-8 w-8 rounded-full border font-bold transition ${answers[question.id]?.rating === rating ? "border-amber-400 bg-amber-400 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-amber-300"}`} type="button" aria-label={`Rate ${rating} out of 5`} onClick={() => setAnswers({ ...answers, [question.id]: { ...(answers[question.id] || {}), rating } })}>{rating}</button>)}</div> : null}
-              {!canSubmit && request.answers?.find((item) => item.questionId === question.id)?.rating ? <p className="mt-2 text-xs font-semibold text-amber-700">Rating: {request.answers.find((item) => item.questionId === question.id).rating} / 5</p> : null}
+              {question.questionType !== "rating" && canSubmit ? <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600"><span className="font-semibold">Optional rating</span>{[1, 2, 3, 4, 5].map((rating) => <button key={rating} className={`h-8 w-8 rounded-full border font-bold transition ${answers[question.id]?.rating === rating ? "border-amber-400 bg-amber-400 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-amber-300"}`} type="button" aria-label={`Rate ${rating} out of 5`} onClick={() => setAnswers({ ...answers, [question.id]: { ...(answers[question.id] || {}), rating } })}>{rating}</button>)}</div> : null}
+              {question.questionType !== "rating" && !canSubmit && request.answers?.find((item) => item.questionId === question.id)?.rating ? <p className="mt-2 text-xs font-semibold text-amber-700">Rating: {request.answers.find((item) => item.questionId === question.id).rating} / 5</p> : null}
             </Field>
           )) : null}
           {canAcknowledge ? (

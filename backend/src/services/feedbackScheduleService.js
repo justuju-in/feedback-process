@@ -187,7 +187,8 @@ export async function runDueFeedbackSchedules() {
         );
         requestId = inserted.insertId;
         const [templateQuestions] = await connection.execute(
-          `SELECT id, question_text AS questionText, question_order AS questionOrder
+          `SELECT id, question_text AS questionText, question_type AS questionType,
+              options_json AS options, is_required AS isRequired, question_order AS questionOrder
            FROM template_questions
            WHERE template_id = ?
            ORDER BY question_order, id`,
@@ -196,9 +197,17 @@ export async function runDueFeedbackSchedules() {
         for (const question of templateQuestions) {
           await connection.execute(
             `INSERT INTO feedback_request_questions
-               (request_id, template_question_id, question_text, question_order)
-             VALUES (?, ?, ?, ?)`,
-            [requestId, question.id, question.questionText, question.questionOrder],
+               (request_id, template_question_id, question_text, question_type, options_json, is_required, question_order)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [
+              requestId,
+              question.id,
+              question.questionText,
+              question.questionType || "long_text",
+              typeof question.options === "string" ? question.options : JSON.stringify(question.options || []),
+              question.isRequired,
+              question.questionOrder,
+            ],
           );
         }
         const [viewers] = await connection.execute("SELECT user_id AS userId FROM feedback_schedule_viewers WHERE schedule_id = ?", [id]);
