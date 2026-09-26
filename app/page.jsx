@@ -1278,6 +1278,23 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
     )));
   }
 
+  function changeCustomQuestionType(index, questionType) {
+    setCustomQuestions((questions) => questions.map((question, questionIndex) => {
+      if (questionIndex !== index) return question;
+      const normalizedQuestion = normalizeCustomQuestion(question);
+      return {
+        ...normalizedQuestion,
+        questionType,
+        options: optionQuestionTypes.has(questionType)
+          ? (normalizedQuestion.options.length >= 2 ? normalizedQuestion.options : ["", ""])
+          : [],
+        validation: textQuestionTypes.has(questionType)
+          ? normalizedQuestion.validation
+          : { minLength: "", maxLength: "" },
+      };
+    }));
+  }
+
   function addCustomQuestion() {
     setCustomQuestions((questions) => [...questions, emptyCustomQuestion()]);
   }
@@ -1309,6 +1326,13 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
     if (questions.length < 1) {
       setNoticeTone("error");
       setNotice("Add at least one question for the custom template.");
+      return;
+    }
+
+    const invalidOptionQuestion = questions.find((question) => optionQuestionTypes.has(question.questionType) && question.options.length < 2);
+    if (invalidOptionQuestion) {
+      setNoticeTone("error");
+      setNotice(`${questionTypeLabel(invalidOptionQuestion.questionType)} questions need at least 2 options.`);
       return;
     }
 
@@ -1538,7 +1562,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
                         <select
                           className={fieldClass}
                           value={question.questionType}
-                          onChange={(event) => updateCustomQuestion(index, "questionType", event.target.value)}
+                          onChange={(event) => changeCustomQuestionType(index, event.target.value)}
                         >
                           {questionTypeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                         </select>
@@ -2155,6 +2179,7 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
   const [attachmentLabel, setAttachmentLabel] = useState("");
   const [attachmentUrl, setAttachmentUrl] = useState("");
   const [attachmentNotice, setAttachmentNotice] = useState("");
+  const [submitNotice, setSubmitNotice] = useState("");
   const canModerate = String(currentUserRole).toLowerCase() === "admin";
 
   function answerPayload(question) {
@@ -2169,7 +2194,21 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
 
   async function submit(event) {
     event.preventDefault();
-    await onSubmit(request.id, template.questions.map(answerPayload));
+    const unansweredQuestion = template.questions.find((question) => {
+      if (question.isRequired === false) return false;
+      const answer = String(answers[question.id]?.answer || "").trim();
+      return !answer;
+    });
+    if (unansweredQuestion) {
+      setSubmitNotice(`Please answer: ${unansweredQuestion.questionText}`);
+      return;
+    }
+    try {
+      setSubmitNotice("");
+      await onSubmit(request.id, template.questions.map(answerPayload));
+    } catch (submitError) {
+      setSubmitNotice(submitError.message || "Feedback could not be submitted.");
+    }
   }
 
   async function saveCurrentDraft() {
@@ -2295,6 +2334,7 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
             </section>
           ) : null}
           {!canSubmit && !canAcknowledge ? <FeedbackHistory request={request} /> : null}
+          {submitNotice ? <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{submitNotice}</p> : null}
           <div className="mt-2 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
             <p className="text-sm text-muted">{footerMessage}</p>
             <div className="flex flex-wrap gap-2">
