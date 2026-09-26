@@ -1572,17 +1572,27 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
                         <div className="grid gap-2">
                           <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Options</p>
                           {question.options.map((option, optionIndex) => (
-                            <input
-                              className={`${fieldClass} min-h-10 py-2`}
-                              key={`custom-question-${index}-option-${optionIndex}`}
-                              placeholder={`Option ${optionIndex + 1}`}
-                              value={option}
-                              onChange={(event) => {
-                                const nextOptions = [...question.options];
-                                nextOptions[optionIndex] = event.target.value;
-                                updateCustomQuestion(index, "options", nextOptions);
-                              }}
-                            />
+                            <div className="grid gap-2 sm:grid-cols-[1fr_auto]" key={`custom-question-${index}-option-${optionIndex}`}>
+                              <input
+                                className={`${fieldClass} min-h-10 py-2`}
+                                placeholder={`Option ${optionIndex + 1}`}
+                                value={option}
+                                onChange={(event) => {
+                                  const nextOptions = [...question.options];
+                                  nextOptions[optionIndex] = event.target.value;
+                                  updateCustomQuestion(index, "options", nextOptions);
+                                }}
+                              />
+                              {question.options.length > 2 ? (
+                                <button
+                                  className="min-h-10 rounded-lg border border-red-200 bg-white px-3 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                                  type="button"
+                                  onClick={() => updateCustomQuestion(index, "options", question.options.filter((_, currentIndex) => currentIndex !== optionIndex))}
+                                >
+                                  Remove
+                                </button>
+                              ) : null}
+                            </div>
                           ))}
                           <button
                             className="justify-self-start text-sm font-bold text-blue-700 hover:underline"
@@ -1592,6 +1602,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
                           >
                             Add option
                           </button>
+                          <CustomQuestionPreview question={question} />
                         </div>
                       ) : null}
                       {usesTextValidation ? (
@@ -1976,6 +1987,46 @@ function checkboxValues(value) {
   return String(value || "").split("\n").filter(Boolean);
 }
 
+function CustomQuestionPreview({ question }) {
+  const options = question.options.map((option) => option.trim()).filter(Boolean);
+  if (!optionQuestionTypes.has(question.questionType)) return null;
+
+  return (
+    <div className="mt-2 rounded-xl border border-blue-100 bg-white p-3">
+      <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Preview</p>
+      <p className="mt-1 text-sm font-semibold text-slate-800">{question.questionText || "Question preview"}</p>
+      {question.helpText ? <p className="mt-1 text-xs text-slate-500">{question.helpText}</p> : null}
+      {!options.length ? <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">Add options to preview this question.</p> : null}
+      {question.questionType === "dropdown" && options.length ? (
+        <select className={`${fieldClass} mt-3 min-h-10 py-2`} value="" onChange={() => {}}>
+          <option value="">Choose an option</option>
+          {options.map((option) => <option key={option} value={option}>{option}</option>)}
+        </select>
+      ) : null}
+      {question.questionType === "radio" && options.length ? (
+        <div className="mt-3 grid gap-2">
+          {options.map((option) => (
+            <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700" key={option}>
+              <input className="h-4 w-4 accent-blue-700" disabled type="radio" />
+              {option}
+            </label>
+          ))}
+        </div>
+      ) : null}
+      {question.questionType === "checkbox" && options.length ? (
+        <div className="mt-3 grid gap-2">
+          {options.map((option) => (
+            <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700" key={option}>
+              <input className="h-4 w-4 accent-blue-700" disabled type="checkbox" />
+              {option}
+            </label>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function QuestionAnswerControl({ canSubmit, question, value, rating, onChange, onRating }) {
   const questionType = question.questionType || "long_text";
   const options = Array.isArray(question.options) ? question.options : [];
@@ -2089,6 +2140,7 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
   const feedbackWasShared = ["submitted", "acknowledged", "follow_up_needed", "closed"].includes(request.status);
   const canReportFeedback = feedbackWasShared && isReceiver && request.isAnonymous;
   const wasStopped = ["cancelled", "declined"].includes(request.status);
+  const textQuestionTypesForRating = new Set(["short_text", "long_text"]);
   const footerMessage = request.status === "cancelled"
     ? "This feedback request was cancelled."
     : request.status === "declined"
@@ -2202,7 +2254,7 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
                 onChange={(value) => setAnswers({ ...answers, [question.id]: { ...(answers[question.id] || {}), answer: value } })}
                 onRating={(rating) => setAnswers({ ...answers, [question.id]: { ...(answers[question.id] || {}), rating } })}
               />
-              {question.questionType !== "rating" && canSubmit ? <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600"><span className="font-semibold">Optional rating</span>{[1, 2, 3, 4, 5].map((rating) => <button key={rating} className={`h-8 w-8 rounded-full border font-bold transition ${answers[question.id]?.rating === rating ? "border-amber-400 bg-amber-400 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-amber-300"}`} type="button" aria-label={`Rate ${rating} out of 5`} onClick={() => setAnswers({ ...answers, [question.id]: { ...(answers[question.id] || {}), rating } })}>{rating}</button>)}</div> : null}
+              {textQuestionTypesForRating.has(question.questionType) && canSubmit ? <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600"><span className="font-semibold">Optional rating</span>{[1, 2, 3, 4, 5].map((rating) => <button key={rating} className={`h-8 w-8 rounded-full border font-bold transition ${answers[question.id]?.rating === rating ? "border-amber-400 bg-amber-400 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-amber-300"}`} type="button" aria-label={`Rate ${rating} out of 5`} onClick={() => setAnswers({ ...answers, [question.id]: { ...(answers[question.id] || {}), rating } })}>{rating}</button>)}</div> : null}
               {question.questionType !== "rating" && !canSubmit && request.answers?.find((item) => item.questionId === question.id)?.rating ? <p className="mt-2 text-xs font-semibold text-amber-700">Rating: {request.answers.find((item) => item.questionId === question.id).rating} / 5</p> : null}
             </Field>
           )) : null}
