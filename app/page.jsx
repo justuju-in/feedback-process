@@ -84,6 +84,7 @@ export default function Home() {
   const currentUser = users.find((user) => user.id === currentUserId);
   const currentUserRole = String(currentUser?.role || "").toLowerCase();
   const isSafetyReviewer = currentUserRole === "sc";
+  const canReviewReports = isSafetyReviewer || reports.length > 0;
   const canViewAnalytics = currentUserRole === "admin";
   const canManagePeople = currentUserRole === "admin";
   const selectedRequestId = selectedRequest?.id;
@@ -386,6 +387,15 @@ export default function Home() {
     } catch (reportError) { setError(reportError.message); }
   }
 
+  async function assignReportReviewers(reportId, internalReviewerId) {
+    try {
+      await api(`/feedback-reports/${reportId}/assign-reviewers`, { method: "POST", body: JSON.stringify({ internalReviewerId }) });
+      await loadReports();
+    } catch (reportError) { setError(reportError.message); }
+  }
+
+  useEffect(() => { if (currentUserId) void loadReports(); }, [currentUserId]);
+
   async function updateUserStatus(user, isActive) {
     const action = isActive ? "reactivate" : "deactivate";
     if (!window.confirm(`Do you want to ${action} ${user.name}'s account? Open requests involving this person will be updated when deactivated.`)) return;
@@ -451,10 +461,10 @@ export default function Home() {
     <div className="flex min-h-screen flex-col bg-gradient-to-br from-[#f6f8ff] via-[#fbfcfe] to-[#eef7ff] text-ink">
       <AppHeader currentUser={currentUser} onLogout={handleLogout} isLoggingOut={isLoggingOut} notifications={notifications} onNotificationRead={markNotificationRead} onReadAll={markAllNotificationsRead} onOpenRequest={(requestId) => void openRequest(requestId)} />
 
-      <MobileNavigation activePage={activePage} showSCReview={isSafetyReviewer} showAnalytics={canViewAnalytics} showPeople={canManagePeople} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
+      <MobileNavigation activePage={activePage} showSCReview={canReviewReports} showAnalytics={canViewAnalytics} showPeople={canManagePeople} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
 
       <div className={`grid min-w-0 flex-1 ${(isCreateOpen || isGiveFeedbackOpen) ? "xl:grid-cols-[260px_minmax(0,1fr)_minmax(380px,460px)]" : "xl:grid-cols-[260px_minmax(0,1fr)]"}`}>
-        <Sidebar activePage={activePage} showSCReview={isSafetyReviewer} showAnalytics={canViewAnalytics} showPeople={canManagePeople} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
+        <Sidebar activePage={activePage} showSCReview={canReviewReports} showAnalytics={canViewAnalytics} showPeople={canManagePeople} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
 
         <main className="min-w-0 border-x border-line/70 bg-white/55 px-5 py-7 backdrop-blur-sm sm:px-7 sm:py-8 lg:px-9 xl:px-10">
           <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -499,7 +509,7 @@ export default function Home() {
           </section>
           </> : null}
 
-          {activePage === "reports" && isSafetyReviewer ? <SCReportReview reports={reports} onReview={(reportId, status) => void reviewReport(reportId, status)} onOpenRequest={(requestId) => void openRequest(requestId)} /> : null}
+          {activePage === "reports" && canReviewReports ? <SCReportReview reports={reports} users={users} currentUserId={currentUserId} isSafetyReviewer={isSafetyReviewer} onAssign={(reportId, reviewerId) => void assignReportReviewers(reportId, reviewerId)} onReview={(reportId, status) => void reviewReport(reportId, status)} onOpenRequest={(requestId) => void openRequest(requestId)} /> : null}
           {activePage === "people" && canManagePeople ? <PeopleManagement users={users} currentUserId={currentUserId} onUpdateStatus={(user, isActive) => void updateUserStatus(user, isActive)} onUpdateRole={(user, role) => void updateUserRole(user, role)} /> : null}
           {activePage === "analytics" && canViewAnalytics ? <AnalyticsDashboard analytics={analytics} /> : null}
 
@@ -815,7 +825,7 @@ function PeopleManagement({ users, currentUserId, onUpdateStatus, onUpdateRole }
   );
 }
 
-function SCReportReview({ reports, onReview, onOpenRequest }) {
+function SCReportReview({ reports, users, currentUserId, isSafetyReviewer, onAssign, onReview, onOpenRequest }) {
   const openReports = reports.filter((report) => report.status === "open");
   return (
     <section className="mt-7 overflow-hidden rounded-2xl border border-line/80 bg-white shadow-[0_12px_36px_rgba(15,23,42,0.07)]">
@@ -826,7 +836,7 @@ function SCReportReview({ reports, onReview, onOpenRequest }) {
       <div className="divide-y divide-line">
         {reports.length ? reports.map((report) => <article className="grid gap-4 px-6 py-5 sm:grid-cols-[1fr_auto]" key={report.id}>
           <div><div className="flex flex-wrap items-center gap-2"><p className="font-bold text-slate-900">Report #{report.id}</p><span className={`rounded-full px-2 py-1 text-xs font-bold ${report.status === "open" ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-600"}`}>{report.status}</span></div><p className="mt-2 text-sm text-slate-700"><span className="font-semibold">Reason:</span> {reportReasonLabel(report.reason)}</p>{report.details ? <p className="mt-2 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-700">{report.details}</p> : null}<p className="mt-3 text-xs text-muted">Reported by {report.reporterName} · {report.templateName} · {formatHistoryTime(report.createdAt)}</p></div>
-          <div className="flex flex-wrap content-start gap-2"><button className={secondaryButton} type="button" onClick={() => onOpenRequest(report.requestId)}>View feedback</button>{report.status === "open" ? <><button className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700" type="button" onClick={() => onReview(report.id, "resolved")}>Resolve</button><button className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50" type="button" onClick={() => onReview(report.id, "dismissed")}>Dismiss</button></> : null}</div>
+          <div className="flex flex-wrap content-start gap-2">{report.requiresDualReview && !report.scReviewerId && isSafetyReviewer ? <select className="field-control w-52" defaultValue="" onChange={(event) => event.target.value && onAssign(report.id, Number(event.target.value))}><option value="">Select internal reviewer</option>{users.filter((user) => user.isActive && user.role !== "sc" && user.role !== "external" && ![report.giverId, report.receiverId].includes(user.id)).map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select> : null}{(!report.requiresDualReview || [report.scReviewerId, report.internalReviewerId].includes(currentUserId)) ? <><button className={secondaryButton} type="button" onClick={() => onOpenRequest(report.requestId)}>View feedback</button>{report.status === "open" || report.status === "in_review" ? <><button className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700" type="button" onClick={() => onReview(report.id, "resolved")}>Resolve</button><button className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50" type="button" onClick={() => onReview(report.id, "dismissed")}>Dismiss</button></> : null}</> : null}</div>
         </article>) : <p className="px-6 py-12 text-center text-base text-muted">No feedback reports yet.</p>}
       </div>
     </section>
