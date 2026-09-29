@@ -11,6 +11,7 @@ import {
   Inbox,
   LogOut,
   Plus,
+  Search,
   Send,
   Sparkles,
   UsersRound,
@@ -520,7 +521,7 @@ export default function Home() {
                 <div className="flex flex-wrap gap-2"><span className="rounded-full bg-white px-3 py-1.5 text-sm font-bold text-slate-700 shadow-sm">{rowsForActivePage.length} total</span>{activePage === "requests" ? <><span className="rounded-full bg-amber-100 px-3 py-1.5 text-sm font-bold text-amber-800">{activeRequestRows.filter((row) => row.status === "overdue").length} overdue</span><span className="rounded-full bg-emerald-100 px-3 py-1.5 text-sm font-bold text-emerald-800">{activeRequestRows.filter((row) => row.status === "submitted").length} awaiting review</span></> : null}</div>
               </div>
               <div className="mt-5 flex flex-1 flex-wrap items-center gap-3">
-                <input className="field-control min-w-64 flex-1 bg-white shadow-sm sm:max-w-md" type="search" value={requestSearch} placeholder="Search people, feedback type, or purpose" onChange={(event) => setRequestSearch(event.target.value)} />
+                <div className="relative min-w-64 flex-1 sm:max-w-md"><Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} aria-hidden="true" /><input className="field-control w-full bg-white py-2.5 pl-11 shadow-sm" type="search" value={requestSearch} placeholder="Search people, feedback type, or purpose" onChange={(event) => setRequestSearch(event.target.value)} /></div>
                 <select className="field-control w-auto min-w-44 bg-white shadow-sm" value={requestStatus} onChange={(event) => setRequestStatus(event.target.value)}>
                   <option value="all">All statuses</option>
                   {statusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
