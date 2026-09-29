@@ -79,6 +79,7 @@ export default function Home() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const latestRequestLoad = useRef(0);
   const openedRequestFromLink = useRef(null);
+  const selectedScIdentityAccessRef = useRef(false);
 
   const currentUser = users.find((user) => user.id === currentUserId);
   const currentUserRole = String(currentUser?.role || "").toLowerCase();
@@ -167,7 +168,9 @@ export default function Home() {
     if (!currentUserId) return undefined;
 
     const refreshSelectedRequest = async () => {
-      if (!selectedRequestId) return;
+      // Keep the audited SC case view in memory. A background refresh must not
+      // make a second, unaudited identity request or overwrite the disclosure.
+      if (!selectedRequestId || selectedScIdentityAccessRef.current) return;
       try {
         const detail = await api(`/feedback-requests/${selectedRequestId}`);
         setSelectedRequest(withRequestTemplate(detail.feedbackRequest));
@@ -261,6 +264,7 @@ export default function Home() {
   async function openRequest(requestId) {
     try {
       const detail = await api(`/feedback-requests/${requestId}?recordView=true`);
+      selectedScIdentityAccessRef.current = Boolean(detail.feedbackRequest.scIdentityAccessGranted);
       setSelectedRequest(withRequestTemplate(detail.feedbackRequest));
     } catch (requestError) {
       setError(requestError.message);
@@ -968,6 +972,7 @@ function GiveFeedbackModal({ currentUser, users, templates, onClose, onSubmit })
     setNotice("");
     const result = await onSubmit({
       receiverIds: selectedReceiverIds, templateId: Number(templateId), purpose, isAnonymous,
+      allowScIdentityDisclosure: isAnonymous && hasAcceptedAnonymousPolicy,
       answers: questions.map((question) => ({ questionId: question.id, answer: answers[question.id]?.answer || "", rating: answers[question.id]?.rating || null })),
     });
     setIsSubmitting(false);
@@ -1014,9 +1019,9 @@ function GiveFeedbackModal({ currentUser, users, templates, onClose, onSubmit })
               <li>Write about work, behaviour, impact, and a helpful next step.</li>
               <li>Do not use abusive, threatening, discriminatory, or humiliating language.</li>
               <li>Do not include private personal, health, family, caste, religion, gender, or appearance details.</li>
-              <li>For harassment, bullying, discrimination, or another serious concern, use <strong>Report feedback</strong> instead.</li>
+              <li>Your name stays hidden from the receiver. If the receiver reports a serious safety concern, the confidential SC Team may access your identity only to investigate the reported case.</li>
             </ul>
-            <label className="mt-3 flex cursor-pointer items-start gap-2 font-semibold text-slate-900"><input className="mt-1 h-4 w-4 accent-amber-600" type="checkbox" checked={hasAcceptedAnonymousPolicy} onChange={(event) => setHasAcceptedAnonymousPolicy(event.target.checked)} /> I understand and will follow these rules.</label>
+            <label className="mt-3 flex cursor-pointer items-start gap-2 font-semibold text-slate-900"><input className="mt-1 h-4 w-4 accent-amber-600" type="checkbox" checked={hasAcceptedAnonymousPolicy} onChange={(event) => setHasAcceptedAnonymousPolicy(event.target.checked)} /> I understand these rules, including the confidential SC investigation notice.</label>
           </section> : null}
         </div>
         <div className={step === 1 ? "" : "hidden"}>
@@ -1843,6 +1848,7 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
   const canCreateFollowUp = (isRequester || isReceiver) && ["acknowledged", "follow_up_needed"].includes(request.status);
   const feedbackWasShared = ["submitted", "acknowledged", "follow_up_needed", "closed"].includes(request.status);
   const canReportFeedback = feedbackWasShared && isReceiver && request.isAnonymous;
+  const isSCIdentityReview = Boolean(request.scIdentityAccessGranted);
   const wasStopped = ["cancelled", "declined"].includes(request.status);
   const footerMessage = request.status === "cancelled"
     ? "This feedback request was cancelled."
@@ -1908,6 +1914,7 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
             </h2>
             <p className="mt-2 text-sm text-slate-600">Share clear, kind, and actionable feedback.</p>
             {request.isAnonymous && !isGiver ? <p className="mt-3 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">Anonymous feedback · giver name hidden</p> : null}
+            {isSCIdentityReview ? <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-900">Confidential SC review: giver identity is visible for this reported safety case. This access is recorded in the audit trail.</p> : null}
           </div>
           <div className="flex shrink-0 flex-wrap justify-end gap-2">
             {canModerate ? <button className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50" type="button" onClick={() => setIsModerationOpen(true)}>Admin record controls</button> : null}
