@@ -97,6 +97,19 @@ async function sendPrivateMattermostMessage({ email, text }) {
   return { sent: true, delivery: "direct-message" };
 }
 
+async function sendMattermostChannelMessage({ channelId, text }) {
+  const config = getMattermostApiConfig();
+  if (!config) {
+    throw new Error("Mattermost private bot settings are incomplete");
+  }
+
+  await callMattermostApi(config, "/posts", {
+    method: "POST",
+    body: JSON.stringify({ channel_id: channelId, message: text }),
+  });
+  return { sent: true, delivery: "private-channel" };
+}
+
 async function sendMattermostMessage(text, webhookUrl = process.env.MATTERMOST_WEBHOOK_URL) {
 
   if (!webhookUrl) {
@@ -134,8 +147,15 @@ export async function sendFeedbackReportNotification(report, scRecipientEmails =
       "Please review this privately in Feedback Process → SC Team Review. " +
       "This alert does not include feedback answers.";
 
-  // When the private Mattermost bot is configured, reports must go only to
-  // active SC Team reviewers—not a shared channel, admins, or other members.
+  // Reports can be routed to the dedicated private SC channel. Normal
+  // feedback notifications still use the one-to-one DM flow below.
+  const scChannelId = process.env.SC_MATTERMOST_CHANNEL_ID?.trim();
+  if (scChannelId) {
+    return sendMattermostChannelMessage({ channelId: scChannelId, text: message });
+  }
+
+  // Backwards-compatible fallback for installations that have not created a
+  // private SC channel yet: alert active SC reviewers individually.
   if (getMattermostApiConfig()) {
     const recipientEmails = [...new Set(scRecipientEmails
       .map((email) => email?.trim().toLowerCase())
