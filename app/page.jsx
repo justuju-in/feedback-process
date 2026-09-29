@@ -513,18 +513,20 @@ export default function Home() {
           {activePage === "people" && canManagePeople ? <PeopleManagement users={users} currentUserId={currentUserId} onUpdateStatus={(user, isActive) => void updateUserStatus(user, isActive)} onUpdateRole={(user, role) => void updateUserRole(user, role)} /> : null}
           {activePage === "analytics" && canViewAnalytics ? <AnalyticsDashboard analytics={analytics} /> : null}
 
-          {["requests", "history"].includes(activePage) ? <section className="mt-7 overflow-hidden rounded-2xl border border-line/80 bg-white shadow-[0_12px_36px_rgba(15,23,42,0.07)]">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-6 py-5">
-              <div className="flex flex-1 flex-wrap items-center gap-3">
-                <input className="field-control max-w-xs" type="search" value={requestSearch} placeholder="Search people, type, or purpose" onChange={(event) => setRequestSearch(event.target.value)} />
-                <select className="field-control w-auto min-w-40" value={requestStatus} onChange={(event) => setRequestStatus(event.target.value)}>
+          {["requests", "history"].includes(activePage) ? <section className="mt-7 overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-[0_20px_55px_rgba(15,23,42,0.08)]">
+            <div className="border-b border-slate-100 bg-gradient-to-r from-blue-50 via-white to-violet-50 px-6 py-5">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div><p className="text-sm font-bold uppercase tracking-[0.14em] text-blue-700">{activePage === "history" ? "Archive" : "Overview"}</p><p className="mt-1 text-sm text-slate-600">{activePage === "history" ? "Completed feedback and previous decisions." : "Keep feedback conversations moving forward."}</p></div>
+                <div className="flex flex-wrap gap-2"><span className="rounded-full bg-white px-3 py-1.5 text-sm font-bold text-slate-700 shadow-sm">{rowsForActivePage.length} total</span>{activePage === "requests" ? <><span className="rounded-full bg-amber-100 px-3 py-1.5 text-sm font-bold text-amber-800">{activeRequestRows.filter((row) => row.status === "overdue").length} overdue</span><span className="rounded-full bg-emerald-100 px-3 py-1.5 text-sm font-bold text-emerald-800">{activeRequestRows.filter((row) => row.status === "submitted").length} awaiting review</span></> : null}</div>
+              </div>
+              <div className="mt-5 flex flex-1 flex-wrap items-center gap-3">
+                <input className="field-control min-w-64 flex-1 bg-white shadow-sm sm:max-w-md" type="search" value={requestSearch} placeholder="Search people, feedback type, or purpose" onChange={(event) => setRequestSearch(event.target.value)} />
+                <select className="field-control w-auto min-w-44 bg-white shadow-sm" value={requestStatus} onChange={(event) => setRequestStatus(event.target.value)}>
                   <option value="all">All statuses</option>
                   {statusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </select>
                 {requestSearch || requestStatus !== "all" ? <button className="text-sm font-semibold text-blue-700 hover:text-blue-900" type="button" onClick={() => { setRequestSearch(""); setRequestStatus("all"); }}>Clear filters</button> : null}
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">{activePage === "history" ? `${visibleRows.length} history records` : `${visibleRows.length} total requests`}</span>
+                <span className="rounded-full bg-slate-200/70 px-3 py-2 text-sm font-semibold text-slate-600">Showing {visibleRows.length}</span>
               </div>
             </div>
             <div className="grid gap-3 p-4 xl:hidden">
@@ -551,8 +553,8 @@ export default function Home() {
               )) : <p className="rounded-xl bg-slate-50 px-4 py-10 text-center text-sm text-muted">{requestSearch || requestStatus !== "all" ? "No requests match these filters." : activePage === "history" ? "No feedback history yet." : "No feedback requests yet. Create a request from the right panel."}</p>}
             </div>
             <div className="hidden overflow-x-auto xl:block">
-              <table className="w-full min-w-[820px] text-left">
-                <thead className="bg-[#f8fafc] text-xs font-bold uppercase tracking-wide text-muted">
+              <table className="w-full min-w-[880px] text-left">
+                <thead className="bg-slate-50/90 text-xs font-bold uppercase tracking-[0.08em] text-slate-500">
                   <tr>
                     <th className="px-6 py-4">Requester / Sender</th>
                     <th className="px-4 py-4">Feedback Giver / Recipient</th>
@@ -563,9 +565,9 @@ export default function Home() {
                     <th className="px-4 py-4">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-line">
+                <tbody className="divide-y divide-slate-100">
                   {visibleRows.length ? visibleRows.map((row) => (
-                    <tr key={row.id} className="transition-colors hover:bg-[#f5f8ff]">
+                    <tr key={row.id} className="group transition-colors hover:bg-blue-50/55">
                       <td className="px-6 py-5">
                         <div className="flex items-center gap-4">
                           <Avatar initials={row.requesterInitials} />
@@ -581,10 +583,10 @@ export default function Home() {
                           <span className="font-semibold">{row.isDirect ? row.receiverName : row.giverName}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-5 text-base font-medium">{row.type}</td>
-                      <td className="px-4 py-5 text-base text-slate-700">{row.purpose}</td>
+                      <td className="px-4 py-5"><span className="font-semibold text-slate-800">{row.type}</span></td>
+                      <td className="px-4 py-5 text-sm font-medium text-slate-600">{row.purpose}</td>
                       <td className="px-4 py-5">
-                        <p className="font-semibold">{row.dueDate}</p>
+                        <p className="font-semibold text-slate-800">{row.dueDate}</p>
                       </td>
                       <td className="px-4 py-5">
                         <span className={statusClass(row.status)}>{row.status === "closed" ? "Done" : row.status}</span>
