@@ -162,6 +162,20 @@ async function startServer() {
     await getDatabasePool().execute("ALTER TABLE feedback_requests ADD COLUMN sc_identity_disclosure_allowed BOOLEAN NOT NULL DEFAULT FALSE AFTER is_anonymous");
   }
 
+  for (const [column, definition] of [
+    ["requires_dual_review", "BOOLEAN NOT NULL DEFAULT FALSE AFTER status"],
+    ["sc_reviewer_id", "INT NULL AFTER requires_dual_review"],
+    ["internal_reviewer_id", "INT NULL AFTER sc_reviewer_id"],
+    ["assigned_at", "TIMESTAMP NULL AFTER internal_reviewer_id"],
+  ]) {
+    const [[reportColumn]] = await getDatabasePool().execute(
+      `SELECT COUNT(*) AS count FROM information_schema.columns
+       WHERE table_schema = DATABASE() AND table_name = 'feedback_reports' AND column_name = ?`,
+      [column],
+    );
+    if (!reportColumn.count) await getDatabasePool().execute(`ALTER TABLE feedback_reports ADD COLUMN ${column} ${definition}`);
+  }
+
   const [[discussionAnswerColumn]] = await getDatabasePool().execute(
     `SELECT COUNT(*) AS count FROM information_schema.columns
      WHERE table_schema = DATABASE() AND table_name = 'feedback_discussions' AND column_name = 'answer_id'`,

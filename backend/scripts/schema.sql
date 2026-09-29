@@ -463,6 +463,10 @@ CREATE TABLE IF NOT EXISTS feedback_reports (
   reason VARCHAR(40) NOT NULL,
   details TEXT NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'open',
+  requires_dual_review BOOLEAN NOT NULL DEFAULT FALSE,
+  sc_reviewer_id INT NULL,
+  internal_reviewer_id INT NULL,
+  assigned_at TIMESTAMP NULL,
   reviewed_by INT NULL,
   reviewed_at TIMESTAMP NULL,
   resolution_note TEXT NULL,
@@ -472,8 +476,19 @@ CREATE TABLE IF NOT EXISTS feedback_reports (
   INDEX feedback_reports_review_queue (status, created_at),
   FOREIGN KEY (request_id) REFERENCES feedback_requests(id),
   FOREIGN KEY (reporter_id) REFERENCES users(id),
+  FOREIGN KEY (sc_reviewer_id) REFERENCES users(id),
+  FOREIGN KEY (internal_reviewer_id) REFERENCES users(id),
   FOREIGN KEY (reviewed_by) REFERENCES users(id)
 );
+
+SET @add_report_dual_review_column = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE feedback_reports ADD COLUMN requires_dual_review BOOLEAN NOT NULL DEFAULT FALSE AFTER status', 'SELECT 1') FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'feedback_reports' AND column_name = 'requires_dual_review');
+PREPARE add_report_dual_review_column_statement FROM @add_report_dual_review_column; EXECUTE add_report_dual_review_column_statement; DEALLOCATE PREPARE add_report_dual_review_column_statement;
+SET @add_report_sc_reviewer_column = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE feedback_reports ADD COLUMN sc_reviewer_id INT NULL AFTER requires_dual_review', 'SELECT 1') FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'feedback_reports' AND column_name = 'sc_reviewer_id');
+PREPARE add_report_sc_reviewer_column_statement FROM @add_report_sc_reviewer_column; EXECUTE add_report_sc_reviewer_column_statement; DEALLOCATE PREPARE add_report_sc_reviewer_column_statement;
+SET @add_report_internal_reviewer_column = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE feedback_reports ADD COLUMN internal_reviewer_id INT NULL AFTER sc_reviewer_id', 'SELECT 1') FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'feedback_reports' AND column_name = 'internal_reviewer_id');
+PREPARE add_report_internal_reviewer_column_statement FROM @add_report_internal_reviewer_column; EXECUTE add_report_internal_reviewer_column_statement; DEALLOCATE PREPARE add_report_internal_reviewer_column_statement;
+SET @add_report_assigned_at_column = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE feedback_reports ADD COLUMN assigned_at TIMESTAMP NULL AFTER internal_reviewer_id', 'SELECT 1') FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'feedback_reports' AND column_name = 'assigned_at');
+PREPARE add_report_assigned_at_column_statement FROM @add_report_assigned_at_column; EXECUTE add_report_assigned_at_column_statement; DEALLOCATE PREPARE add_report_assigned_at_column_statement;
 
 CREATE TABLE IF NOT EXISTS feedback_audit_log (
   id INT AUTO_INCREMENT PRIMARY KEY,
