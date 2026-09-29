@@ -851,12 +851,13 @@ function AnalyticsDashboard({ analytics }) {
   const summary = analytics.summary || {};
   const completionRate = Number(summary.totalRequests) ? Math.round((Number(summary.completedRequests) / Number(summary.totalRequests)) * 100) : 0;
   const templateItems = analytics.byTemplate || [];
+  const highestTemplateCount = Math.max(1, ...templateItems.map((item) => Number(item.requestCount) || 0));
   const templatesPerPage = 4;
   const templatePageCount = Math.max(1, Math.ceil(templateItems.length / templatesPerPage));
   const currentTemplatePage = Math.min(templatePage, templatePageCount);
   const visibleTemplateItems = templateItems.slice((currentTemplatePage - 1) * templatesPerPage, currentTemplatePage * templatesPerPage);
   return <section className="mt-7 grid gap-5">
-    <p className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">These are anonymous team totals only. Individual feedback answers and names are not shown here.</p>
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 via-indigo-50 to-violet-50 px-5 py-4"><div><p className="font-bold text-blue-950">Privacy-first team insights</p><p className="mt-1 text-sm text-blue-800">Anonymous totals only — individual feedback answers and names are never shown here.</p></div><span className="rounded-full bg-white/90 px-3 py-1.5 text-sm font-bold text-indigo-700 shadow-sm">Team overview</span></div>
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <StatCard icon={<Inbox size={24} />} tone="blue" label="Total requests" value={summary.totalRequests || 0} helper="Across the whole team" />
       <StatCard icon={<Check size={24} />} tone="green" label="Completed" value={summary.completedRequests || 0} helper={`${completionRate}% completion rate`} />
@@ -864,8 +865,8 @@ function AnalyticsDashboard({ analytics }) {
       <StatCard icon={<BarChart3 size={24} />} tone="violet" label="Average response" value={summary.averageResponseHours == null ? "—" : `${Math.round(summary.averageResponseHours)}h`} helper="From request to submitted feedback" />
     </div>
     <div className="grid gap-5 lg:grid-cols-2">
-      <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><h2 className="text-lg font-bold text-slate-950">Requests by feedback type</h2><div className="mt-4 grid gap-3">{templateItems.length ? visibleTemplateItems.map((item) => <div className="flex items-center justify-between gap-4 rounded-xl bg-slate-50 px-4 py-3" key={item.templateName}><div><p className="font-semibold text-slate-900">{item.templateName}</p><p className="mt-1 text-sm text-muted">{item.completedRequests} completed</p></div><span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-bold text-blue-700">{item.requestCount}</span></div>) : <p className="text-sm text-muted">No feedback requests yet.</p>}</div>{templateItems.length > templatesPerPage ? <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-4"><p className="text-sm text-muted">Showing {(currentTemplatePage - 1) * templatesPerPage + 1}–{Math.min(currentTemplatePage * templatesPerPage, templateItems.length)} of {templateItems.length}</p><div className="flex gap-2"><button className={secondaryButton} type="button" disabled={currentTemplatePage === 1} onClick={() => setTemplatePage((page) => Math.max(1, page - 1))}>Previous</button><button className={secondaryButton} type="button" disabled={currentTemplatePage === templatePageCount} onClick={() => setTemplatePage((page) => Math.min(templatePageCount, page + 1))}>Next</button></div></div> : null}</article>
-      <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><h2 className="text-lg font-bold text-slate-950">Requests by status</h2><div className="mt-4 grid gap-3">{(analytics.byStatus || []).length ? analytics.byStatus.map((item) => <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3" key={item.status}><span className="font-semibold capitalize text-slate-900">{String(item.status).replaceAll("_", " ")}</span><span className="rounded-full bg-slate-200 px-3 py-1 text-sm font-bold text-slate-700">{item.requestCount}</span></div>) : <p className="text-sm text-muted">No feedback requests yet.</p>}</div></article>
+      <article className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-[0_16px_40px_rgba(15,23,42,0.07)]"><div className="flex items-center justify-between"><div><h2 className="text-lg font-bold text-slate-950">Requests by feedback type</h2><p className="mt-1 text-sm text-muted">Where the team is seeking input.</p></div><span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-bold text-blue-700">{templateItems.length} types</span></div><div className="mt-5 grid gap-3">{templateItems.length ? visibleTemplateItems.map((item) => <div className="rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3" key={item.templateName}><div className="flex items-center justify-between gap-4"><div><p className="font-semibold text-slate-900">{item.templateName}</p><p className="mt-1 text-sm text-muted">{item.completedRequests} completed</p></div><span className="rounded-full bg-white px-3 py-1 text-sm font-bold text-blue-700 shadow-sm">{item.requestCount}</span></div><div className="mt-3 h-1.5 overflow-hidden rounded-full bg-blue-100"><div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500" style={{ width: `${Math.max(8, Math.round((Number(item.requestCount) / highestTemplateCount) * 100))}%` }} /></div></div>) : <p className="text-sm text-muted">No feedback requests yet.</p>}</div>{templateItems.length > templatesPerPage ? <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-4"><p className="text-sm text-muted">Showing {(currentTemplatePage - 1) * templatesPerPage + 1}–{Math.min(currentTemplatePage * templatesPerPage, templateItems.length)} of {templateItems.length}</p><div className="flex gap-2"><button className={secondaryButton} type="button" disabled={currentTemplatePage === 1} onClick={() => setTemplatePage((page) => Math.max(1, page - 1))}>Previous</button><button className={secondaryButton} type="button" disabled={currentTemplatePage === templatePageCount} onClick={() => setTemplatePage((page) => Math.min(templatePageCount, page + 1))}>Next</button></div></div> : null}</article>
+      <article className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-[0_16px_40px_rgba(15,23,42,0.07)]"><div className="flex items-center justify-between"><div><h2 className="text-lg font-bold text-slate-950">Requests by status</h2><p className="mt-1 text-sm text-muted">A quick view of current progress.</p></div><span className="rounded-full bg-violet-50 px-3 py-1 text-sm font-bold text-violet-700">Live mix</span></div><div className="mt-5 grid gap-3">{(analytics.byStatus || []).length ? analytics.byStatus.map((item) => <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3" key={item.status}><span className="font-semibold capitalize text-slate-800">{String(item.status).replaceAll("_", " ")}</span><span className="rounded-full bg-white px-3 py-1 text-sm font-bold text-slate-700 shadow-sm">{item.requestCount}</span></div>) : <p className="text-sm text-muted">No feedback requests yet.</p>}</div></article>
     </div>
   </section>;
 }
@@ -894,6 +895,7 @@ function StatCard({ icon, tone, label, value, helper }) {
     blue: "bg-blue-50 text-blue-700",
     green: "bg-green-50 text-green-700",
     amber: "bg-orange-50 text-orange-700",
+    violet: "bg-violet-50 text-violet-700",
   }[tone];
 
   return (
@@ -904,7 +906,7 @@ function StatCard({ icon, tone, label, value, helper }) {
         </div>
         <div>
           <p className="text-base font-semibold text-slate-800 sm:text-lg">{label}</p>
-          <p className={`mt-1 text-4xl font-extrabold tracking-tight sm:text-5xl ${tone === "amber" ? "text-orange-600" : tone === "green" ? "text-green-700" : "text-blue-700"}`}>
+          <p className={`mt-1 text-4xl font-extrabold tracking-tight sm:text-5xl ${tone === "amber" ? "text-orange-600" : tone === "green" ? "text-green-700" : tone === "violet" ? "text-violet-700" : "text-blue-700"}`}>
             {value}
           </p>
         </div>
