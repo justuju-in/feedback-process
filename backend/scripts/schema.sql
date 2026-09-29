@@ -179,6 +179,7 @@ CREATE TABLE IF NOT EXISTS feedback_requests (
   purpose VARCHAR(40) NULL,
   visibility VARCHAR(30) NOT NULL DEFAULT 'private',
   is_anonymous BOOLEAN NOT NULL DEFAULT FALSE,
+  sc_identity_disclosure_allowed BOOLEAN NOT NULL DEFAULT FALSE,
   alternate_giver_id INT NULL,
   hidden_at TIMESTAMP NULL,
   hidden_by INT NULL,
@@ -197,6 +198,24 @@ CREATE TABLE IF NOT EXISTS feedback_requests (
   FOREIGN KEY (alternate_giver_id) REFERENCES users(id),
   FOREIGN KEY (template_id) REFERENCES feedback_templates(id)
 );
+
+-- Anonymous feedback submitted before this notice existed remains fully
+-- anonymous. New feedback can opt in to confidential SC identity disclosure
+-- only for a reported safety investigation.
+SET @add_sc_identity_disclosure_allowed_column = (
+  SELECT IF(
+    COUNT(*) = 0,
+    'ALTER TABLE feedback_requests ADD COLUMN sc_identity_disclosure_allowed BOOLEAN NOT NULL DEFAULT FALSE AFTER is_anonymous',
+    'SELECT 1'
+  )
+  FROM information_schema.columns
+  WHERE table_schema = DATABASE()
+    AND table_name = 'feedback_requests'
+    AND column_name = 'sc_identity_disclosure_allowed'
+);
+PREPARE add_sc_identity_disclosure_allowed_column_statement FROM @add_sc_identity_disclosure_allowed_column;
+EXECUTE add_sc_identity_disclosure_allowed_column_statement;
+DEALLOCATE PREPARE add_sc_identity_disclosure_allowed_column_statement;
 
 SET @add_submitted_at_column = (
   SELECT IF(COUNT(*) = 0, 'ALTER TABLE feedback_requests ADD COLUMN submitted_at TIMESTAMP NULL AFTER status', 'SELECT 1')

@@ -154,6 +154,14 @@ async function startServer() {
     await getDatabasePool().execute("ALTER TABLE feedback_requests ADD COLUMN is_direct BOOLEAN NOT NULL DEFAULT FALSE AFTER is_anonymous");
   }
 
+  const [[scIdentityDisclosureColumn]] = await getDatabasePool().execute(
+    `SELECT COUNT(*) AS count FROM information_schema.columns
+     WHERE table_schema = DATABASE() AND table_name = 'feedback_requests' AND column_name = 'sc_identity_disclosure_allowed'`,
+  );
+  if (!scIdentityDisclosureColumn.count) {
+    await getDatabasePool().execute("ALTER TABLE feedback_requests ADD COLUMN sc_identity_disclosure_allowed BOOLEAN NOT NULL DEFAULT FALSE AFTER is_anonymous");
+  }
+
   const [[discussionAnswerColumn]] = await getDatabasePool().execute(
     `SELECT COUNT(*) AS count FROM information_schema.columns
      WHERE table_schema = DATABASE() AND table_name = 'feedback_discussions' AND column_name = 'answer_id'`,
