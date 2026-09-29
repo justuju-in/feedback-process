@@ -71,7 +71,7 @@ export async function createDirectFeedback(req, res) {
   const submittedReceiverIds = Array.isArray(req.body.receiverIds) ? req.body.receiverIds : [req.body.receiverId];
   const receiverIds = [...new Set(submittedReceiverIds.map(parsePositiveInteger))];
   const templateId = parsePositiveInteger(req.body.templateId);
-  const { answers, purpose, isAnonymous } = req.body;
+  const { answers, purpose, isAnonymous, allowScIdentityDisclosure } = req.body;
 
   if (req.auth.user.role === "external") return res.status(403).json({ message: "External collaborators cannot give direct feedback." });
   if (!receiverIds.length || receiverIds.some((id) => !id) || !templateId) return res.status(400).json({ message: "receiverIds and templateId must be positive integers" });
@@ -82,7 +82,7 @@ export async function createDirectFeedback(req, res) {
     for (const receiverId of receiverIds) {
       const createdFeedback = await createFeedbackRequestInDatabase({
         requesterId: giverId, giverId, receiverId, templateId, purpose,
-        visibility: "private", viewerIds: [], isAnonymous, isDirectFeedback: true,
+        visibility: "private", viewerIds: [], isAnonymous, scIdentityDisclosureAllowed: allowScIdentityDisclosure === true, isDirectFeedback: true,
       });
       feedbackRequests.push(await saveFeedbackAnswers(createdFeedback.id, giverId, answers));
     }
@@ -197,6 +197,13 @@ export async function getFeedbackRequestById(req, res) {
     );
     const hasSafetyReport = Boolean(report);
     const isSCReviewerForReport = role === "sc" && hasSafetyReport;
+    // Identity disclosure is allowed only where the giver explicitly agreed
+    // before submitting this anonymous feedback, and only on a deliberate SC
+    // case open. Background refreshes therefore remain redacted.
+    const canRevealAnonymousGiverIdentity = isSCReviewerForReport
+      && feedbackRequest.isAnonymous
+      && feedbackRequest.scIdentityDisclosureAllowed
+      && req.query.recordView === "true";
     const canAccess = isParticipant
       || (!hasSafetyReport && isModerator)
       || isSCReviewerForReport;
@@ -208,8 +215,17 @@ export async function getFeedbackRequestById(req, res) {
     // create a noisy, misleading view history.
     if (req.query.recordView === "true") {
       await writeFeedbackAuditEvent({ requestId, actorId: req.auth.user.id, eventType: "feedback_viewed" });
+      if (canRevealAnonymousGiverIdentity) {
+        await writeFeedbackAuditEvent({ requestId, actorId: req.auth.user.id, eventType: "anonymous_giver_identity_viewed_by_sc" });
+      }
     }
-    return res.status(200).json({ feedbackRequest: redactFeedbackRequestForViewer(feedbackRequest, req.auth.user.id) });
+    const responseRequest = redactFeedbackRequestForViewer(feedbackRequest, req.auth.user.id, {
+      revealAnonymousGiver: canRevealAnonymousGiverIdentity,
+    });
+    if (canRevealAnonymousGiverIdentity) {
+      responseRequest.scIdentityAccessGranted = true;
+    }
+    return res.status(200).json({ feedbackRequest: responseRequest });
   } catch (error) {
     return respondWithError(res, error);
   }

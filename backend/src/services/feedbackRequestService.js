@@ -33,6 +33,7 @@ const requestSelect = `
     request.purpose,
     request.visibility,
     request.is_anonymous AS isAnonymous,
+    request.sc_identity_disclosure_allowed AS scIdentityDisclosureAllowed,
     request.is_direct AS isDirect,
     request.due_date AS dueDate,
     request.status,
@@ -220,6 +221,7 @@ export async function createFeedbackRequest({
   visibility,
   viewerIds,
   isAnonymous,
+  scIdentityDisclosureAllowed = false,
   isDirectFeedback = false,
 }) {
   if (requesterId === giverId && !isDirectFeedback) {
@@ -233,8 +235,12 @@ export async function createFeedbackRequest({
   const normalizedPurpose = normalizePurpose(purpose);
   const normalizedVisibility = normalizeVisibility(visibility);
   const normalizedIsAnonymous = normalizeAnonymous(isAnonymous);
+  const normalizedScIdentityDisclosureAllowed = normalizedIsAnonymous && Boolean(scIdentityDisclosureAllowed);
   if (!isDirectFeedback && normalizedIsAnonymous) {
     throw new ServiceError(400, "Anonymous feedback can only be sent using Give Feedback");
+  }
+  if (isDirectFeedback && normalizedIsAnonymous && !normalizedScIdentityDisclosureAllowed) {
+    throw new ServiceError(400, "Please confirm the confidential SC investigation notice before sharing anonymous feedback");
   }
   const normalizedViewerIds = normalizeViewerIds(viewerIds, requesterId, giverId, receiverId, normalizedVisibility);
   const requester = await requireUser(pool, requesterId, "Requester");
@@ -275,9 +281,9 @@ export async function createFeedbackRequest({
     await connection.beginTransaction();
     [result] = await connection.execute(
       `INSERT INTO feedback_requests
-         (requester_id, giver_id, receiver_id, template_id, message, due_date, purpose, visibility, is_anonymous, is_direct, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'requested')`,
-      [requesterId, giverId, receiverId, templateId, message || null, normalizedDueDate, normalizedPurpose, normalizedVisibility, normalizedIsAnonymous, isDirectFeedback],
+         (requester_id, giver_id, receiver_id, template_id, message, due_date, purpose, visibility, is_anonymous, sc_identity_disclosure_allowed, is_direct, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'requested')`,
+      [requesterId, giverId, receiverId, templateId, message || null, normalizedDueDate, normalizedPurpose, normalizedVisibility, normalizedIsAnonymous, normalizedScIdentityDisclosureAllowed, isDirectFeedback],
     );
     const [templateQuestions] = await connection.execute(
       `SELECT id, question_text AS questionText, question_order AS questionOrder
@@ -300,7 +306,15 @@ export async function createFeedbackRequest({
         [result.insertId, viewerId],
       );
     }
-    await writeFeedbackAuditEvent({ requestId: result.insertId, actorId: requesterId, eventType: "request_created", connection });
+    await writeFeedbackAuditEvent({
+      requestId: result.insertId,
+      actorId: requesterId,
+      eventType: "request_created",
+      details: normalizedIsAnonymous
+        ? JSON.stringify({ scIdentityDisclosureAllowed: normalizedScIdentityDisclosureAllowed })
+        : null,
+      connection,
+    });
     await connection.commit();
   } catch (error) {
     await connection.rollback();
@@ -615,11 +629,13 @@ export async function addFeedbackAttachment({ requestId, actorId, label, url }) 
 // The database preserves the giver for authorised operations, but API output
 // must not reveal that identity to the requester, receiver, or selected viewers.
 // The giver can still recognise their own request and submit their feedback.
-export function redactFeedbackRequestForViewer(feedbackRequest, viewerId) {
+// A reported anonymous case is the sole exception: its SC reviewer receives
+// the identity through an explicitly audited case-review access path.
+export function redactFeedbackRequestForViewer(feedbackRequest, viewerId, { revealAnonymousGiver = false } = {}) {
   const hideDraft = (request) => Number(request?.draft?.giverId) === Number(viewerId)
     ? request
     : { ...request, draft: null };
-  if (!feedbackRequest?.isAnonymous || Number(feedbackRequest.giverId) === Number(viewerId)) {
+  if (!feedbackRequest?.isAnonymous || Number(feedbackRequest.giverId) === Number(viewerId) || revealAnonymousGiver) {
     return hideDraft(feedbackRequest);
   }
 
