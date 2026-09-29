@@ -20,7 +20,7 @@ import { getDatabasePool } from "../db/connection.js";
 import { FEEDBACK_CONTENT_POLICY_VIOLATION, validateDirectFeedbackAnswers } from "../services/feedbackContentPolicy.js";
 import { writeFeedbackPolicyEvent } from "../services/feedbackPolicyAuditService.js";
 
-const allowedActions = ["start", "decline", "cancel", "acknowledge", "close"];
+const allowedActions = ["start", "decline", "cancel", "acknowledge", "close", "hide", "remove", "reopen"];
 
 function parsePositiveInteger(value) {
   const parsedValue = Number(value);
@@ -185,7 +185,11 @@ export async function getFeedbackRequestById(req, res) {
       || feedbackRequest.receiverId === req.auth.user.id
       || hasViewerAccess;
     const role = String(req.auth.user.role).toLowerCase();
+    const isModerator = role === "admin";
+
     // A safety report moves the record into the confidential SC Team workflow.
+    // Admins may still moderate ordinary feedback records, but must not be able
+    // to open a reported record unless they are already a normal participant.
     // SC reviewers can open it only when there is an associated report.
     const [[report]] = await getDatabasePool().execute(
       "SELECT id FROM feedback_reports WHERE request_id = ? LIMIT 1",
@@ -193,7 +197,9 @@ export async function getFeedbackRequestById(req, res) {
     );
     const hasSafetyReport = Boolean(report);
     const isSCReviewerForReport = role === "sc" && hasSafetyReport;
-    const canAccess = isParticipant || isSCReviewerForReport;
+    const canAccess = isParticipant
+      || (!hasSafetyReport && isModerator)
+      || isSCReviewerForReport;
 
     if (!canAccess) {
       return res.status(403).json({ message: "You do not have access to this feedback request" });
@@ -327,7 +333,7 @@ export async function updateFollowUp(req, res) {
 
 export async function performFeedbackRequestAction(req, res) {
   const requestId = parsePositiveInteger(req.params.id);
-  const { action, acknowledgementComment, declineReason, alternateGiverId: submittedAlternateGiverId } = req.body;
+  const { action, acknowledgementComment, declineReason, moderationReason, alternateGiverId: submittedAlternateGiverId } = req.body;
   const alternateGiverId = submittedAlternateGiverId === undefined || submittedAlternateGiverId === null || submittedAlternateGiverId === ""
     ? null
     : parsePositiveInteger(submittedAlternateGiverId);
@@ -363,6 +369,10 @@ export async function performFeedbackRequestAction(req, res) {
   if (action === "decline" && declineReason?.trim().length < 3) {
     return res.status(400).json({ message: "Please provide a decline reason of at least 3 characters" });
   }
+  if (["hide", "remove", "reopen"].includes(action) && (!moderationReason || moderationReason.trim().length < 3)) {
+    return res.status(400).json({ message: "Please provide a reason of at least 3 characters" });
+  }
+
   if (declineReason && declineReason.trim().length > 500) {
     return res.status(400).json({ message: "Decline reason must be 500 characters or less" });
   }
@@ -375,6 +385,7 @@ export async function performFeedbackRequestAction(req, res) {
       acknowledgementComment?.trim() || null,
       declineReason?.trim() || null,
       alternateGiverId,
+      moderationReason?.trim() || null,
     );
 
     return res.status(200).json({

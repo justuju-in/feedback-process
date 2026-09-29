@@ -960,10 +960,11 @@ export async function performFeedbackRequestAction(
   acknowledgementComment = null,
   declineReason = null,
   alternateGiverId = null,
+  moderationReason = null,
 ) {
   const rule = lifecycleActions[action];
 
-  if (!rule) {
+  if (!rule && !["hide", "remove", "reopen"].includes(action)) {
     throw new ServiceError(400, "Unsupported feedback request action");
   }
 
@@ -972,6 +973,23 @@ export async function performFeedbackRequestAction(
 
   try {
     await connection.beginTransaction();
+
+    if (["hide", "remove", "reopen"].includes(action)) {
+      const [[actor]] = await connection.execute("SELECT role FROM users WHERE id = ?", [actorId]);
+      if (!actor || String(actor.role).toLowerCase() !== "admin") throw new ServiceError(403, "Only an admin can moderate feedback records");
+      const [[record]] = await connection.execute("SELECT id, status, removed_at AS removedAt FROM feedback_requests WHERE id = ? FOR UPDATE", [requestId]);
+      if (!record) throw new ServiceError(404, "Feedback request not found");
+      if (action === "hide") await connection.execute("UPDATE feedback_requests SET hidden_at = NOW(), hidden_by = ?, hidden_reason = ? WHERE id = ?", [actorId, moderationReason, requestId]);
+      if (action === "remove") await connection.execute("UPDATE feedback_requests SET removed_at = NOW(), removed_by = ?, removed_reason = ? WHERE id = ?", [actorId, moderationReason, requestId]);
+      if (action === "reopen") {
+        if (record.status !== "closed") throw new ServiceError(409, "Only a closed feedback record can be reopened");
+        await connection.execute("UPDATE feedback_requests SET status = 'acknowledged', hidden_at = NULL, removed_at = NULL WHERE id = ?", [requestId]);
+      }
+      const eventType = { hide: "record_hidden", remove: "record_removed", reopen: "record_reopened" }[action];
+      await writeFeedbackAuditEvent({ requestId, actorId, eventType, details: moderationReason, connection });
+      await connection.commit();
+      return getFeedbackRequestById(requestId);
+    }
 
     const [[request]] = await connection.execute(
       `SELECT id, requester_id AS requesterId, giver_id AS giverId, receiver_id AS receiverId, status
