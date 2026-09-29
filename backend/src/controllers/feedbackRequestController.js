@@ -197,10 +197,21 @@ export async function getFeedbackRequestById(req, res) {
     );
     const hasSafetyReport = Boolean(report);
     const isSCReviewerForReport = role === "sc" && hasSafetyReport;
+    const isReportRecipient = Number(feedbackRequest.receiverId) === Number(req.auth.user.id);
+    let hasTwoIndependentReviewers = false;
+    if (isSCReviewerForReport) {
+      const [[independentReviewerCount]] = await getDatabasePool().execute(
+        "SELECT COUNT(*) AS count FROM users WHERE role = 'sc' AND is_active = TRUE AND id != ?",
+        [feedbackRequest.receiverId],
+      );
+      hasTwoIndependentReviewers = Number(independentReviewerCount.count) >= 2;
+    }
     // Identity disclosure is allowed only where the giver explicitly agreed
     // before submitting this anonymous feedback, and only on a deliberate SC
     // case open. Background refreshes therefore remain redacted.
     const canRevealAnonymousGiverIdentity = isSCReviewerForReport
+      && !isReportRecipient
+      && hasTwoIndependentReviewers
       && feedbackRequest.isAnonymous
       && feedbackRequest.scIdentityDisclosureAllowed
       && req.query.recordView === "true";
