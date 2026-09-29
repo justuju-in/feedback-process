@@ -192,21 +192,25 @@ export async function getFeedbackRequestById(req, res) {
     // to open a reported record unless they are already a normal participant.
     // SC reviewers can open it only when there is an associated report.
     const [[report]] = await getDatabasePool().execute(
-      "SELECT id FROM feedback_reports WHERE request_id = ? LIMIT 1",
+      "SELECT id, requires_dual_review AS requiresDualReview, sc_reviewer_id AS scReviewerId, internal_reviewer_id AS internalReviewerId FROM feedback_reports WHERE request_id = ? LIMIT 1",
       [requestId],
     );
     const hasSafetyReport = Boolean(report);
-    const isSCReviewerForReport = role === "sc" && hasSafetyReport;
+    const isAssignedSpecialReviewer = Boolean(report?.requiresDualReview)
+      && [report.scReviewerId, report.internalReviewerId].some((id) => Number(id) === Number(req.auth.user.id));
+    const isSCReviewerForReport = role === "sc" && hasSafetyReport
+      && (!report.requiresDualReview || Number(report.scReviewerId) === Number(req.auth.user.id));
     // Identity disclosure is allowed only where the giver explicitly agreed
     // before submitting this anonymous feedback, and only on a deliberate SC
     // case open. Background refreshes therefore remain redacted.
-    const canRevealAnonymousGiverIdentity = isSCReviewerForReport
+    const canRevealAnonymousGiverIdentity = (isSCReviewerForReport || isAssignedSpecialReviewer)
       && feedbackRequest.isAnonymous
       && feedbackRequest.scIdentityDisclosureAllowed
       && req.query.recordView === "true";
     const canAccess = isParticipant
       || (!hasSafetyReport && isModerator)
-      || isSCReviewerForReport;
+      || isSCReviewerForReport
+      || isAssignedSpecialReviewer;
 
     if (!canAccess) {
       return res.status(403).json({ message: "You do not have access to this feedback request" });

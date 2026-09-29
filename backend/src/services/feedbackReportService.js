@@ -10,8 +10,9 @@ const reviewRoles = new Set(["sc"]);
 
 async function requireReportAccess(pool, requestId, userId) {
   const [[request]] = await pool.execute(
-    `SELECT request.id, request.status, request.is_anonymous AS isAnonymous
+    `SELECT request.id, request.status, request.is_anonymous AS isAnonymous, receiver.role AS receiverRole
      FROM feedback_requests AS request
+     JOIN users AS receiver ON receiver.id = request.receiver_id
      WHERE request.id = ?
        AND request.receiver_id = ?`,
     [requestId, userId],
@@ -23,18 +24,20 @@ async function requireReportAccess(pool, requestId, userId) {
   if (!["submitted", "acknowledged", "closed"].includes(request.status)) {
     throw new ServiceError(409, "Feedback can be reported after it has been submitted");
   }
+  return request;
 }
 
 export async function createFeedbackReport({ requestId, reporterId, reason, details }) {
   const pool = getDatabasePool();
-  await requireReportAccess(pool, requestId, reporterId);
+  const request = await requireReportAccess(pool, requestId, reporterId);
+  const requiresDualReview = String(request.receiverRole).toLowerCase() === "sc";
   try {
     const [result] = await pool.execute(
-      `INSERT INTO feedback_reports (request_id, reporter_id, reason, details)
-       VALUES (?, ?, ?, ?)`,
-      [requestId, reporterId, reason, details || null],
+      `INSERT INTO feedback_reports (request_id, reporter_id, reason, details, requires_dual_review)
+       VALUES (?, ?, ?, ?, ?)`,
+      [requestId, reporterId, reason, details || null, requiresDualReview],
     );
-    const report = { id: result.insertId, requestId, reason, details: details || null, status: "open" };
+    const report = { id: result.insertId, requestId, reason, details: details || null, status: "open", requiresDualReview };
     await writeFeedbackAuditEvent({ requestId, actorId: reporterId, eventType: "feedback_reported", details: reason });
     try {
       const [scTeamMembers] = await pool.execute(
@@ -58,32 +61,62 @@ export async function createFeedbackReport({ requestId, reporterId, reason, deta
   }
 }
 
-async function requireReviewer(pool, reviewerId) {
-  const [[reviewer]] = await pool.execute("SELECT role FROM users WHERE id = ?", [reviewerId]);
-  if (!reviewer || !reviewRoles.has(String(reviewer.role).toLowerCase())) {
-    throw new ServiceError(403, "Only the SC Team can access confidential feedback reports");
-  }
+async function getReviewer(pool, reviewerId) {
+  const [[reviewer]] = await pool.execute("SELECT id, role, is_active AS isActive FROM users WHERE id = ?", [reviewerId]);
+  if (!reviewer?.isActive) throw new ServiceError(403, "Only active reviewers can access confidential feedback reports");
+  return reviewer;
 }
 
 export async function getFeedbackReports(reviewerId) {
   const pool = getDatabasePool();
-  await requireReviewer(pool, reviewerId);
+  const reviewer = await getReviewer(pool, reviewerId);
+  const isSC = reviewRoles.has(String(reviewer.role).toLowerCase());
   const [reports] = await pool.execute(
     `SELECT report.id, report.request_id AS requestId, report.reason, report.details,
        report.status, report.created_at AS createdAt, reporter.name AS reporterName,
-       request.status AS requestStatus, template.name AS templateName
+       request.status AS requestStatus, request.giver_id AS giverId, request.receiver_id AS receiverId,
+       template.name AS templateName, report.requires_dual_review AS requiresDualReview,
+       report.sc_reviewer_id AS scReviewerId, report.internal_reviewer_id AS internalReviewerId
      FROM feedback_reports AS report
      JOIN users AS reporter ON reporter.id = report.reporter_id
      JOIN feedback_requests AS request ON request.id = report.request_id
      JOIN feedback_templates AS template ON template.id = request.template_id
+     ${isSC ? "" : "WHERE report.internal_reviewer_id = ?"}
      ORDER BY report.status = 'open' DESC, report.created_at DESC`,
+    isSC ? [] : [reviewerId],
   );
   return reports;
 }
 
+export async function assignSpecialReportReviewers({ reportId, scReviewerId, internalReviewerId }) {
+  const pool = getDatabasePool();
+  const scReviewer = await getReviewer(pool, scReviewerId);
+  if (!reviewRoles.has(String(scReviewer.role).toLowerCase())) throw new ServiceError(403, "An SC Team member must lead this review");
+  const [[report]] = await pool.execute(
+    `SELECT report.request_id AS requestId, report.reporter_id AS reporterId, report.requires_dual_review AS requiresDualReview,
+       report.sc_reviewer_id AS scReviewerId, request.giver_id AS giverId, request.receiver_id AS receiverId
+     FROM feedback_reports AS report JOIN feedback_requests AS request ON request.id = report.request_id WHERE report.id = ?`, [reportId],
+  );
+  if (!report) throw new ServiceError(404, "Feedback report not found");
+  if (!report.requiresDualReview) throw new ServiceError(400, "This report follows the normal SC Team process");
+  if (report.scReviewerId) throw new ServiceError(409, "Reviewers have already been assigned");
+  if (Number(report.receiverId) === Number(scReviewerId)) throw new ServiceError(403, "The feedback receiver cannot review their own report");
+  const internalReviewer = await getReviewer(pool, internalReviewerId);
+  if (reviewRoles.has(String(internalReviewer.role).toLowerCase()) || [report.giverId, report.receiverId].some((id) => Number(id) === Number(internalReviewerId))) {
+    throw new ServiceError(400, "Choose an active Justuju member who is not an SC member, feedback giver, or receiver");
+  }
+  await pool.execute("UPDATE feedback_reports SET sc_reviewer_id = ?, internal_reviewer_id = ?, assigned_at = CURRENT_TIMESTAMP, status = 'in_review' WHERE id = ?", [scReviewerId, internalReviewerId, reportId]);
+  await writeFeedbackAuditEvent({ requestId: report.requestId, actorId: scReviewerId, eventType: "special_report_reviewers_assigned", details: JSON.stringify({ internalReviewerId }) });
+}
+
 export async function reviewFeedbackReport({ reportId, reviewerId, status, resolutionNote }) {
   const pool = getDatabasePool();
-  await requireReviewer(pool, reviewerId);
+  const reviewer = await getReviewer(pool, reviewerId);
+  const isSC = reviewRoles.has(String(reviewer.role).toLowerCase());
+  const [[access]] = await pool.execute("SELECT request_id AS requestId, requires_dual_review AS requiresDualReview, sc_reviewer_id AS scReviewerId, internal_reviewer_id AS internalReviewerId FROM feedback_reports WHERE id = ?", [reportId]);
+  if (!access) throw new ServiceError(404, "Feedback report not found");
+  const isAssignedSpecialReviewer = access.requiresDualReview && [access.scReviewerId, access.internalReviewerId].some((id) => Number(id) === Number(reviewerId));
+  if ((!access.requiresDualReview && !isSC) || (access.requiresDualReview && !isAssignedSpecialReviewer)) throw new ServiceError(403, "You are not assigned to review this report");
   const [result] = await pool.execute(
     `UPDATE feedback_reports
      SET status = ?, reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP, resolution_note = ?
@@ -91,6 +124,5 @@ export async function reviewFeedbackReport({ reportId, reviewerId, status, resol
     [status, reviewerId, resolutionNote || null, reportId],
   );
   if (!result.affectedRows) throw new ServiceError(404, "Feedback report not found");
-  const [[report]] = await pool.execute("SELECT request_id AS requestId FROM feedback_reports WHERE id = ?", [reportId]);
-  await writeFeedbackAuditEvent({ requestId: report.requestId, actorId: reviewerId, eventType: `report_${status}` });
+  await writeFeedbackAuditEvent({ requestId: access.requestId, actorId: reviewerId, eventType: `report_${status}` });
 }

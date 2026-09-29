@@ -1,5 +1,5 @@
 import { respondWithError } from "./respondWithError.js";
-import { createFeedbackReport, getFeedbackReports, reviewFeedbackReport } from "../services/feedbackReportService.js";
+import { assignSpecialReportReviewers, createFeedbackReport, getFeedbackReports, reviewFeedbackReport } from "../services/feedbackReportService.js";
 
 const reasons = new Set(["rude", "harassment", "discrimination", "inappropriate", "other"]);
 const reviewStatuses = new Set(["resolved", "dismissed"]);
@@ -39,5 +39,15 @@ export async function reviewReport(req, res) {
   try {
     await reviewFeedbackReport({ reportId, reviewerId: req.auth.user.id, status, resolutionNote: resolutionNote?.trim() });
     return res.status(200).json({ message: "Feedback report reviewed" });
+  } catch (error) { return respondWithError(res, error); }
+}
+
+export async function assignReportReviewers(req, res) {
+  const reportId = parseId(req.params.id);
+  const internalReviewerId = parseId(req.body.internalReviewerId);
+  if (!reportId || !internalReviewerId) return res.status(400).json({ message: "A valid internal reviewer is required" });
+  try {
+    await assignSpecialReportReviewers({ reportId, scReviewerId: req.auth.user.id, internalReviewerId });
+    return res.status(200).json({ message: "SC and internal reviewers assigned" });
   } catch (error) { return respondWithError(res, error); }
 }
