@@ -13,8 +13,7 @@ export async function getFeedbackAnalytics(actorId) {
   const [[summary]] = await pool.execute(
     `SELECT COUNT(*) AS totalRequests,
        SUM(status = 'closed') AS completedRequests,
-       SUM(status IN ('requested', 'in_progress', 'overdue')) AS openRequests,
-       AVG(CASE WHEN submitted_at IS NOT NULL THEN TIMESTAMPDIFF(HOUR, created_at, submitted_at) END) AS averageResponseHours
+       SUM(status IN ('requested', 'in_progress', 'overdue')) AS openRequests
      FROM feedback_requests`,
   );
   const [byTemplate] = await pool.execute(
@@ -37,7 +36,6 @@ export async function getFeedbackAnalytics(actorId) {
       completedRequests,
       openRequests: Number(summary.openRequests || 0),
       completionRate: totalRequests ? Math.round((completedRequests / totalRequests) * 100) : 0,
-      averageResponseHours: summary.averageResponseHours === null ? null : Math.round(Number(summary.averageResponseHours) * 10) / 10,
     },
     byTemplate: byTemplate.map((row) => ({ ...row, requestCount: Number(row.requestCount), completedRequests: Number(row.completedRequests) })),
     byStatus: byStatus.map((row) => ({ status: row.label, requestCount: Number(row.requestCount) })),
