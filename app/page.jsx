@@ -1453,7 +1453,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-bold text-slate-900">Need your own questions?</p>
-              <p className="mt-0.5 text-sm text-muted">Create a reusable custom template.</p>
+              <p className="mt-0.5 text-sm text-muted">Future feedback ke liye reusable questions save karein.</p>
             </div>
             <button
               className={secondaryButton}
@@ -1469,7 +1469,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
               }}
             >
               <Plus size={17} />
-              {isCustomTemplateOpen ? "Close custom" : "Custom"}
+              {isCustomTemplateOpen ? "Close custom template" : "Create custom template"}
             </button>
           </div>
 
