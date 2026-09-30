@@ -227,6 +227,9 @@ export async function createFeedbackRequest({
   if (requesterId === giverId && !isDirectFeedback) {
     throw new ServiceError(400, "You cannot request feedback from yourself");
   }
+  if (!isDirectFeedback && requesterId !== receiverId) {
+    throw new ServiceError(403, "Feedback requests can only be created for yourself");
+  }
   if (isDirectFeedback && requesterId !== giverId) throw new ServiceError(400, "Direct feedback must be created by the feedback giver");
   if (isDirectFeedback && giverId === receiverId) throw new ServiceError(400, "You cannot give feedback to yourself");
 

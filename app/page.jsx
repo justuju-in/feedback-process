@@ -1053,7 +1053,9 @@ function GiveFeedbackModal({ currentUser, users, templates, onClose, onSubmit })
 
 function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, requests, replacementRequest, onCreate, onCreateTemplate, onUpdateTemplate, onSetTemplateStatus, onClose }) {
   const possibleGivers = users.filter((user) => user.id !== currentUserId && user.isActive !== false);
-  const possibleReceivers = users.filter((user) => user.isActive !== false);
+  // A feedback request always belongs to the person creating it. Keeping this
+  // list to the signed-in user prevents requests being sent on another person's behalf.
+  const possibleReceivers = users.filter((user) => user.id === currentUserId && user.isActive !== false);
   const [giverId, setGiverId] = useState("");
   const [giverIds, setGiverIds] = useState([]);
   const [receiverId, setReceiverId] = useState(String(currentUserId || ""));
