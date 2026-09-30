@@ -75,6 +75,7 @@ export default function Home() {
   const [activePage, setActivePage] = useState("dashboard");
   const [requestSearch, setRequestSearch] = useState("");
   const [requestStatus, setRequestStatus] = useState("all");
+  const [requestPage, setRequestPage] = useState(1);
   const [error, setError] = useState("");
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -103,10 +104,18 @@ export default function Home() {
     const searchableText = [request.requesterName, request.giverName, request.type, request.purpose, request.status].join(" ").toLowerCase();
     return searchableText.includes(requestSearch.trim().toLowerCase()) && (requestStatus === "all" || request.status === requestStatus);
   });
+  const requestsPerPage = 5;
+  const requestPageCount = Math.max(1, Math.ceil(visibleRows.length / requestsPerPage));
+  const safeRequestPage = Math.min(requestPage, requestPageCount);
+  const paginatedRows = visibleRows.slice((safeRequestPage - 1) * requestsPerPage, safeRequestPage * requestsPerPage);
   const statusOptions = activePage === "history"
     ? [["closed", "Done"], ["cancelled", "Cancelled"], ["declined", "Declined"]]
     : [["requested", "Requested"], ["in_progress", "In progress"], ["overdue", "Overdue"], ["submitted", "Submitted"], ["acknowledged", "Acknowledged"]];
   const upcomingRequests = tableRows.filter((request) => ["requested", "in_progress", "overdue"].includes(request.status) && request.dueDate !== "Not selected").slice(0, 3);
+
+  useEffect(() => {
+    setRequestPage(1);
+  }, [activePage, requestSearch, requestStatus]);
 
   useEffect(() => {
     async function loadReferenceData() {
@@ -531,7 +540,7 @@ export default function Home() {
               </div>
             </div>
             <div className="grid gap-3 p-4 xl:hidden">
-              {visibleRows.length ? visibleRows.map((row) => (
+              {visibleRows.length ? paginatedRows.map((row) => (
                 <article key={row.id} className="rounded-xl border border-line bg-slate-50 p-4 shadow-sm">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -567,7 +576,7 @@ export default function Home() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {visibleRows.length ? visibleRows.map((row) => (
+                  {visibleRows.length ? paginatedRows.map((row) => (
                     <tr key={row.id} className="group transition-colors hover:bg-blue-50/55">
                       <td className="px-6 py-5">
                         <div className="flex items-center gap-4">
@@ -622,8 +631,9 @@ export default function Home() {
                 </tbody>
               </table>
             </div>
-            <div className="flex items-center justify-between border-t border-line px-6 py-4 text-base text-muted">
-              <span>Showing 1 to {visibleRows.length} of {rowsForActivePage.length} {activePage === "history" ? "history records" : "requests"}</span>
+            <div className="flex flex-col gap-3 border-t border-line px-6 py-4 text-base text-muted sm:flex-row sm:items-center sm:justify-between">
+              <span>{visibleRows.length ? `Showing ${(safeRequestPage - 1) * requestsPerPage + 1}–${Math.min(safeRequestPage * requestsPerPage, visibleRows.length)} of ${visibleRows.length}` : "Showing 0 of 0"} {activePage === "history" ? "history records" : "requests"}</span>
+              {visibleRows.length > requestsPerPage ? <div className="flex gap-2"><button className="inline-flex min-w-24 justify-center rounded-lg border border-emerald-700 bg-emerald-700 px-4 py-2 text-white disabled:cursor-not-allowed disabled:border-emerald-200 disabled:bg-emerald-100 disabled:text-emerald-700" type="button" disabled={safeRequestPage === 1} onClick={() => setRequestPage((page) => Math.max(1, page - 1))}>Previous</button><button className="inline-flex min-w-24 justify-center rounded-lg border border-emerald-700 bg-emerald-700 px-4 py-2 text-white disabled:cursor-not-allowed disabled:border-emerald-200 disabled:bg-emerald-100 disabled:text-emerald-700" type="button" disabled={safeRequestPage === requestPageCount} onClick={() => setRequestPage((page) => Math.min(requestPageCount, page + 1))}>Next</button></div> : null}
             </div>
           </section> : null}
           {error ? (
