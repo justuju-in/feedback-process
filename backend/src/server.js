@@ -166,6 +166,10 @@ async function startServer() {
     ["requires_dual_review", "BOOLEAN NOT NULL DEFAULT FALSE AFTER status"],
     ["sc_reviewer_id", "INT NULL AFTER requires_dual_review"],
     ["internal_reviewer_id", "INT NULL AFTER sc_reviewer_id"],
+    ["proposed_outcome", "VARCHAR(20) NULL AFTER internal_reviewer_id"],
+    ["sc_proposed_at", "TIMESTAMP NULL AFTER proposed_outcome"],
+    ["internal_decision", "VARCHAR(20) NULL AFTER sc_proposed_at"],
+    ["internal_reviewed_at", "TIMESTAMP NULL AFTER internal_decision"],
     ["assigned_at", "TIMESTAMP NULL AFTER internal_reviewer_id"],
   ]) {
     const [[reportColumn]] = await getDatabasePool().execute(

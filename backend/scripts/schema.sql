@@ -466,6 +466,10 @@ CREATE TABLE IF NOT EXISTS feedback_reports (
   requires_dual_review BOOLEAN NOT NULL DEFAULT FALSE,
   sc_reviewer_id INT NULL,
   internal_reviewer_id INT NULL,
+  proposed_outcome VARCHAR(20) NULL,
+  sc_proposed_at TIMESTAMP NULL,
+  internal_decision VARCHAR(20) NULL,
+  internal_reviewed_at TIMESTAMP NULL,
   assigned_at TIMESTAMP NULL,
   reviewed_by INT NULL,
   reviewed_at TIMESTAMP NULL,
@@ -489,6 +493,14 @@ SET @add_report_internal_reviewer_column = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE
 PREPARE add_report_internal_reviewer_column_statement FROM @add_report_internal_reviewer_column; EXECUTE add_report_internal_reviewer_column_statement; DEALLOCATE PREPARE add_report_internal_reviewer_column_statement;
 SET @add_report_assigned_at_column = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE feedback_reports ADD COLUMN assigned_at TIMESTAMP NULL AFTER internal_reviewer_id', 'SELECT 1') FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'feedback_reports' AND column_name = 'assigned_at');
 PREPARE add_report_assigned_at_column_statement FROM @add_report_assigned_at_column; EXECUTE add_report_assigned_at_column_statement; DEALLOCATE PREPARE add_report_assigned_at_column_statement;
+SET @add_report_proposed_outcome_column = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE feedback_reports ADD COLUMN proposed_outcome VARCHAR(20) NULL AFTER internal_reviewer_id', 'SELECT 1') FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'feedback_reports' AND column_name = 'proposed_outcome');
+PREPARE add_report_proposed_outcome_column_statement FROM @add_report_proposed_outcome_column; EXECUTE add_report_proposed_outcome_column_statement; DEALLOCATE PREPARE add_report_proposed_outcome_column_statement;
+SET @add_report_sc_proposed_at_column = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE feedback_reports ADD COLUMN sc_proposed_at TIMESTAMP NULL AFTER proposed_outcome', 'SELECT 1') FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'feedback_reports' AND column_name = 'sc_proposed_at');
+PREPARE add_report_sc_proposed_at_column_statement FROM @add_report_sc_proposed_at_column; EXECUTE add_report_sc_proposed_at_column_statement; DEALLOCATE PREPARE add_report_sc_proposed_at_column_statement;
+SET @add_report_internal_decision_column = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE feedback_reports ADD COLUMN internal_decision VARCHAR(20) NULL AFTER sc_proposed_at', 'SELECT 1') FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'feedback_reports' AND column_name = 'internal_decision');
+PREPARE add_report_internal_decision_column_statement FROM @add_report_internal_decision_column; EXECUTE add_report_internal_decision_column_statement; DEALLOCATE PREPARE add_report_internal_decision_column_statement;
+SET @add_report_internal_reviewed_at_column = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE feedback_reports ADD COLUMN internal_reviewed_at TIMESTAMP NULL AFTER internal_decision', 'SELECT 1') FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'feedback_reports' AND column_name = 'internal_reviewed_at');
+PREPARE add_report_internal_reviewed_at_column_statement FROM @add_report_internal_reviewed_at_column; EXECUTE add_report_internal_reviewed_at_column_statement; DEALLOCATE PREPARE add_report_internal_reviewed_at_column_statement;
 
 CREATE TABLE IF NOT EXISTS feedback_audit_log (
   id INT AUTO_INCREMENT PRIMARY KEY,

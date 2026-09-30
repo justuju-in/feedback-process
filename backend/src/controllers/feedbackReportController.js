@@ -2,7 +2,7 @@ import { respondWithError } from "./respondWithError.js";
 import { assignSpecialReportReviewers, createFeedbackReport, getFeedbackReports, reviewFeedbackReport } from "../services/feedbackReportService.js";
 
 const reasons = new Set(["rude", "harassment", "discrimination", "inappropriate", "other"]);
-const reviewStatuses = new Set(["resolved", "dismissed"]);
+const reviewStatuses = new Set(["resolved", "dismissed", "approved", "disagreed"]);
 
 function parseId(value) {
   const id = Number(value);
@@ -33,7 +33,7 @@ export async function reviewReport(req, res) {
   const reportId = parseId(req.params.id);
   const { status, resolutionNote } = req.body;
   if (!reportId) return res.status(400).json({ message: "Report ID must be a positive integer" });
-  if (!reviewStatuses.has(status)) return res.status(400).json({ message: "status must be resolved or dismissed" });
+  if (!reviewStatuses.has(status)) return res.status(400).json({ message: "Choose a valid review action" });
   if (resolutionNote !== undefined && typeof resolutionNote !== "string") return res.status(400).json({ message: "Resolution note must be text" });
   if (resolutionNote?.trim().length > 1000) return res.status(400).json({ message: "Resolution note must be 1000 characters or less" });
   try {

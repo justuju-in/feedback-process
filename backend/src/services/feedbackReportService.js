@@ -76,7 +76,10 @@ export async function getFeedbackReports(reviewerId) {
        report.status, report.created_at AS createdAt, reporter.name AS reporterName,
        request.status AS requestStatus, request.giver_id AS giverId, request.receiver_id AS receiverId,
        template.name AS templateName, report.requires_dual_review AS requiresDualReview,
-       report.sc_reviewer_id AS scReviewerId, report.internal_reviewer_id AS internalReviewerId
+       report.sc_reviewer_id AS scReviewerId, report.internal_reviewer_id AS internalReviewerId,
+       report.proposed_outcome AS proposedOutcome, report.sc_proposed_at AS scProposedAt,
+       report.internal_decision AS internalDecision, report.internal_reviewed_at AS internalReviewedAt,
+       report.resolution_note AS resolutionNote
      FROM feedback_reports AS report
      JOIN users AS reporter ON reporter.id = report.reporter_id
      JOIN feedback_requests AS request ON request.id = report.request_id
@@ -111,18 +114,87 @@ export async function assignSpecialReportReviewers({ reportId, scReviewerId, int
 
 export async function reviewFeedbackReport({ reportId, reviewerId, status, resolutionNote }) {
   const pool = getDatabasePool();
-  const reviewer = await getReviewer(pool, reviewerId);
-  const isSC = reviewRoles.has(String(reviewer.role).toLowerCase());
-  const [[access]] = await pool.execute("SELECT request_id AS requestId, requires_dual_review AS requiresDualReview, sc_reviewer_id AS scReviewerId, internal_reviewer_id AS internalReviewerId FROM feedback_reports WHERE id = ?", [reportId]);
-  if (!access) throw new ServiceError(404, "Feedback report not found");
-  const isAssignedSpecialReviewer = access.requiresDualReview && [access.scReviewerId, access.internalReviewerId].some((id) => Number(id) === Number(reviewerId));
-  if ((!access.requiresDualReview && !isSC) || (access.requiresDualReview && !isAssignedSpecialReviewer)) throw new ServiceError(403, "You are not assigned to review this report");
-  const [result] = await pool.execute(
-    `UPDATE feedback_reports
-     SET status = ?, reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP, resolution_note = ?
-     WHERE id = ?`,
-    [status, reviewerId, resolutionNote || null, reportId],
-  );
-  if (!result.affectedRows) throw new ServiceError(404, "Feedback report not found");
-  await writeFeedbackAuditEvent({ requestId: access.requestId, actorId: reviewerId, eventType: `report_${status}` });
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+    const reviewer = await getReviewer(connection, reviewerId);
+    const isSC = reviewRoles.has(String(reviewer.role).toLowerCase());
+    const [[report]] = await connection.execute(
+      `SELECT request_id AS requestId, status, requires_dual_review AS requiresDualReview,
+         sc_reviewer_id AS scReviewerId, internal_reviewer_id AS internalReviewerId,
+         proposed_outcome AS proposedOutcome
+       FROM feedback_reports WHERE id = ? FOR UPDATE`,
+      [reportId],
+    );
+    if (!report) throw new ServiceError(404, "Feedback report not found");
+
+    if (!report.requiresDualReview) {
+      if (!isSC) throw new ServiceError(403, "Only an SC Team member can review this report");
+      if (!["open", "in_review"].includes(report.status) || !["resolved", "dismissed"].includes(status)) {
+        throw new ServiceError(409, "This report is no longer awaiting a decision");
+      }
+      await connection.execute(
+        `UPDATE feedback_reports
+         SET status = ?, reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP, resolution_note = ?
+         WHERE id = ?`,
+        [status, reviewerId, resolutionNote || null, reportId],
+      );
+      await writeFeedbackAuditEvent({ requestId: report.requestId, actorId: reviewerId, eventType: `report_${status}`, connection });
+      await connection.commit();
+      return { status };
+    }
+
+    if (report.status !== "in_review") throw new ServiceError(409, "This special report is no longer awaiting review");
+
+    if (Number(report.scReviewerId) === Number(reviewerId)) {
+      if (!["resolved", "dismissed"].includes(status)) throw new ServiceError(400, "The SC reviewer must propose resolve or dismiss");
+      if (report.proposedOutcome) throw new ServiceError(409, "The SC reviewer has already proposed an outcome");
+      await connection.execute(
+        `UPDATE feedback_reports
+         SET proposed_outcome = ?, sc_proposed_at = CURRENT_TIMESTAMP, resolution_note = ?
+         WHERE id = ?`,
+        [status, resolutionNote || null, reportId],
+      );
+      await writeFeedbackAuditEvent({ requestId: report.requestId, actorId: reviewerId, eventType: `special_report_${status}_proposed`, connection });
+      await connection.commit();
+      return { status: "awaiting_internal_approval", proposedOutcome: status };
+    }
+
+    if (Number(report.internalReviewerId) !== Number(reviewerId)) throw new ServiceError(403, "You are not assigned to review this report");
+    if (!report.proposedOutcome) throw new ServiceError(409, "Wait for the SC reviewer to propose an outcome first");
+
+    if (status === "approved") {
+      await connection.execute(
+        `UPDATE feedback_reports
+         SET status = ?, internal_decision = 'approved', internal_reviewed_at = CURRENT_TIMESTAMP,
+             reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [report.proposedOutcome, reviewerId, reportId],
+      );
+      await writeFeedbackAuditEvent({ requestId: report.requestId, actorId: reviewerId, eventType: `special_report_${report.proposedOutcome}_approved`, connection });
+      await connection.commit();
+      return { status: report.proposedOutcome };
+    }
+
+    if (status === "disagreed") {
+      await connection.execute(
+        `UPDATE feedback_reports
+         SET status = 'needs_escalation', internal_decision = 'disagreed', internal_reviewed_at = CURRENT_TIMESTAMP,
+             reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [reviewerId, reportId],
+      );
+      await writeFeedbackAuditEvent({ requestId: report.requestId, actorId: reviewerId, eventType: "special_report_disagreed_needs_escalation", connection });
+      await connection.commit();
+      return { status: "needs_escalation" };
+    }
+
+    throw new ServiceError(400, "Choose approve or disagree with the SC proposal");
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
