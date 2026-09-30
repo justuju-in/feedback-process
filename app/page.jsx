@@ -1552,7 +1552,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
                 {manageableTemplates.map((template) => (
                   <div key={template.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5">
                     <div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-900">{template.name}</p><p className="truncate text-xs text-muted">{template.description || "Custom feedback template"}</p></div>
-                    <div className="flex shrink-0 gap-2"><button className="text-xs font-bold text-blue-700 hover:underline" type="button" onClick={() => void editTemplate(template)}>Edit</button><button className="text-xs font-bold text-emerald-700 hover:underline" type="button" onClick={() => void duplicateTemplate(template)}>Duplicate</button><button className="text-xs font-bold text-red-600 hover:underline" type="button" onClick={() => void deactivateTemplate(template)}>Disable</button></div>
+                    <div className="flex shrink-0 gap-2">{Number(template.hasBeenUsed) === 0 ? <button className="text-xs font-bold text-blue-700 hover:underline" type="button" onClick={() => void editTemplate(template)}>Edit</button> : null}<button className="text-xs font-bold text-emerald-700 hover:underline" type="button" onClick={() => void duplicateTemplate(template)}>Duplicate</button><button className="text-xs font-bold text-red-600 hover:underline" type="button" onClick={() => void deactivateTemplate(template)}>Disable</button></div>
                   </div>
                 ))}
               </div> : null}

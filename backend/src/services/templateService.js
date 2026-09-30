@@ -99,7 +99,8 @@ export async function getAllTemplates({ includeInactive = false, userId = null }
   const [templates] = await pool.query(
     `SELECT template.id, template.name, template.description,
         template.created_by AS createdBy, template.is_active AS isActive,
-        template.created_at AS createdAt, creator.name AS createdByName
+        template.created_at AS createdAt, creator.name AS createdByName,
+        EXISTS(SELECT 1 FROM feedback_requests AS request WHERE request.template_id = template.id) AS hasBeenUsed
      FROM feedback_templates AS template
      LEFT JOIN users AS creator ON creator.id = template.created_by
      ${includeInactive ? "WHERE 1 = 1" : "WHERE template.is_active = TRUE"}
