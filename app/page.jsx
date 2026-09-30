@@ -1439,7 +1439,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
               ))}
             </select>
           </SelectShell>
-          <p className="text-sm font-normal text-muted">Choose yourself for personal feedback, or another Justuju member when you are coordinating feedback for them.</p>
+          <p className="text-sm font-normal text-muted">Feedback will be requested for you.</p>
         </Field>
 
         <Field className={step === 2 ? "" : "hidden"} label="Due date (optional)">
@@ -1475,7 +1475,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
 
           {isCustomTemplateOpen ? (
             <div className="mt-5 grid gap-4">
-              <Field label="Custom feedback type name">
+              <Field label="Custom feedback type name (required)">
                 <input
                   className={fieldClass}
                   placeholder="Example: Peer Feedback"
@@ -1538,6 +1538,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
                 <Check size={18} />
                 {isSavingTemplate ? "Saving template..." : editingTemplateId ? "Update custom template" : "Save custom template"}
               </button>
+              {notice ? <p className={`rounded-lg px-4 py-3 text-sm font-semibold ${noticeTone === "success" ? "border border-emerald-200 bg-emerald-50 text-emerald-800" : "border border-red-200 bg-red-50 text-red-700"}`} role="status">{notice}</p> : null}
             </div>
           ) : null}
 
