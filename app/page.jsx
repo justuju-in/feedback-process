@@ -825,13 +825,25 @@ function Sidebar({ activePage, showSCReview, showAnalytics, showPeople, onSelect
 }
 
 function PeopleManagement({ users, currentUserId, onUpdateStatus, onUpdateRole }) {
+  const activeUsers = users.filter((user) => user.isActive).length;
+  const inactiveUsers = users.length - activeUsers;
+
   return (
-    <section className="mt-7 overflow-hidden rounded-2xl border border-line/80 bg-white shadow-[0_12px_36px_rgba(15,23,42,0.07)]">
-      <div className="border-b border-line px-6 py-5"><p className="font-bold text-slate-950">Account access</p><p className="mt-1 text-sm text-muted">Deactivating an account signs the person out and updates open feedback requests. Completed history remains saved.</p></div>
-      <div className="divide-y divide-line">
-        {users.map((user) => <article className="flex flex-wrap items-center justify-between gap-4 px-6 py-4" key={user.id}>
-          <div><p className="font-semibold text-slate-900">{user.name}</p><p className="mt-1 text-sm text-muted">{user.email} · {user.role || "member"}</p></div>
-          <div className="flex flex-wrap items-center gap-3"><select className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700" value={user.role || "member"} onChange={(event) => onUpdateRole(user, event.target.value)} aria-label={`Role for ${user.name}`}><option value="member">Member</option><option value="mentor">Mentor</option><option value="lead">Lead</option><option value="manager">Manager</option><option value="sc">SC Team</option><option value="hr">HR</option><option value="admin">Admin</option></select><span className={`rounded-full px-3 py-1 text-xs font-bold ${user.isActive ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{user.isActive ? "Active" : "Deactivated"}</span>{user.id !== currentUserId ? <button className={user.isActive ? "rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50" : secondaryButton} type="button" onClick={() => onUpdateStatus(user, !user.isActive)}>{user.isActive ? "Deactivate" : "Reactivate"}</button> : null}</div>
+    <section className="mt-7 overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-[0_20px_55px_rgba(15,23,42,0.08)]">
+      <div className="border-b border-slate-100 bg-gradient-to-r from-blue-50 via-white to-violet-50 px-6 py-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm"><UsersRound size={21} /></div>
+            <div><p className="text-lg font-bold text-slate-950">Account access</p><p className="mt-1 text-sm text-muted">Manage roles and account access for your feedback workspace.</p></div>
+          </div>
+          <div className="flex flex-wrap gap-2"><span className="rounded-full bg-white px-3 py-1.5 text-sm font-bold text-slate-700 shadow-sm">{users.length} people</span><span className="rounded-full bg-emerald-100 px-3 py-1.5 text-sm font-bold text-emerald-800">{activeUsers} active</span>{inactiveUsers ? <span className="rounded-full bg-slate-200 px-3 py-1.5 text-sm font-bold text-slate-600">{inactiveUsers} inactive</span> : null}</div>
+        </div>
+        <p className="mt-4 rounded-xl border border-amber-200/70 bg-amber-50/70 px-3 py-2 text-sm text-amber-900">Deactivating an account signs the person out and updates open feedback requests. Completed history remains saved.</p>
+      </div>
+      <div className="divide-y divide-slate-100">
+        {users.map((user) => <article className={`flex flex-col gap-4 px-6 py-5 transition hover:bg-slate-50/80 sm:flex-row sm:items-center sm:justify-between ${user.isActive ? "" : "bg-slate-50/50"}`} key={user.id}>
+          <div className="flex min-w-0 items-center gap-3"><Avatar initials={initialsForName(user.name)} /><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-bold text-slate-900">{user.name}</p>{user.id === currentUserId ? <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700">You</span> : null}</div><p className="mt-1 truncate text-sm text-muted">{user.email}</p></div></div>
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end"><select className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm" value={user.role || "member"} onChange={(event) => onUpdateRole(user, event.target.value)} aria-label={`Role for ${user.name}`}><option value="member">Member</option><option value="mentor">Mentor</option><option value="lead">Lead</option><option value="manager">Manager</option><option value="sc">SC Team</option><option value="hr">HR</option><option value="admin">Admin</option></select><span className={`rounded-full px-3 py-1.5 text-xs font-bold ${user.isActive ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>{user.isActive ? "Active" : "Deactivated"}</span>{user.id !== currentUserId ? <button className={user.isActive ? "rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50" : secondaryButton} type="button" onClick={() => onUpdateStatus(user, !user.isActive)}>{user.isActive ? "Deactivate" : "Reactivate"}</button> : null}</div>
         </article>)}
       </div>
     </section>
