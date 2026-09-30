@@ -1319,6 +1319,31 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
     }
   }
 
+  async function duplicateTemplate(template) {
+    try {
+      const data = await api(`/templates/${template.id}/questions`);
+      const existingNames = new Set(manageableTemplates.map((item) => item.name.trim().toLowerCase()));
+      const copyName = `Copy of ${template.name}`;
+      let duplicateName = copyName;
+      let copyNumber = 2;
+      while (existingNames.has(duplicateName.toLowerCase())) {
+        duplicateName = `Copy ${copyNumber} of ${template.name}`;
+        copyNumber += 1;
+      }
+      setEditingTemplateId(null);
+      setCustomTemplateName(duplicateName);
+      setCustomTemplateDescription(template.description || "");
+      setCustomQuestions(data.questions.map((question) => question.questionText));
+      setSavedTemplateName("");
+      setIsCustomTemplateOpen(true);
+      setNoticeTone("success");
+      setNotice("A copy is ready. Update it if needed, then save it as a new template.");
+    } catch (templateError) {
+      setNoticeTone("error");
+      setNotice(templateError.message);
+    }
+  }
+
   async function deactivateTemplate(template) {
     if (template.createdBy == null) {
       setNoticeTone("error");
@@ -1524,7 +1549,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
                 {manageableTemplates.map((template) => (
                   <div key={template.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5">
                     <div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-900">{template.name}</p><p className="truncate text-xs text-muted">{template.description || "Custom feedback template"}</p></div>
-                    <div className="flex shrink-0 gap-2"><button className="text-xs font-bold text-blue-700 hover:underline" type="button" onClick={() => void editTemplate(template)}>Edit</button><button className="text-xs font-bold text-red-600 hover:underline" type="button" onClick={() => void deactivateTemplate(template)}>Disable</button></div>
+                    <div className="flex shrink-0 gap-2"><button className="text-xs font-bold text-blue-700 hover:underline" type="button" onClick={() => void editTemplate(template)}>Edit</button><button className="text-xs font-bold text-emerald-700 hover:underline" type="button" onClick={() => void duplicateTemplate(template)}>Duplicate</button><button className="text-xs font-bold text-red-600 hover:underline" type="button" onClick={() => void deactivateTemplate(template)}>Disable</button></div>
                   </div>
                 ))}
               </div> : null}
