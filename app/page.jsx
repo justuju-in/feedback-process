@@ -1450,13 +1450,13 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
         {step === 2 ? <div className="flex items-center justify-between gap-3"><button className={secondaryButton} type="button" onClick={() => setStep(1)}>Back</button><button className={primaryButton} type="button" onClick={() => continueToStep(3)}>Continue</button></div> : null}
 
         <div className={step === 1 ? "rounded-xl border border-dashed border-slate-300 bg-slate-50/70 p-3.5" : "hidden"}>
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-bold text-slate-900">Need your own questions?</p>
               <p className="mt-0.5 text-sm text-muted">Future feedback ke liye reusable questions save karein.</p>
             </div>
             <button
-              className={secondaryButton}
+              className={`${secondaryButton} w-full justify-center whitespace-nowrap sm:w-auto`}
               type="button"
               onClick={() => {
                 setIsCustomTemplateOpen((isOpen) => !isOpen);
