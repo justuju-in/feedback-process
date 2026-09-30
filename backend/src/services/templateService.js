@@ -1,8 +1,6 @@
 import { getDatabasePool } from "../db/connection.js";
 import { ServiceError } from "./serviceError.js";
 
-const moderatorRoles = new Set(["admin"]);
-
 const builtInTemplates = [
   {
     name: "Learning Feedback",
@@ -76,10 +74,6 @@ const builtInTemplates = [
     ],
   },
 ];
-
-function canModerate(role) {
-  return moderatorRoles.has(String(role || "").toLowerCase());
-}
 
 function normalizeTemplateDetails({ name, description, questions }) {
   const templateName = String(name || "").trim();
@@ -193,8 +187,9 @@ export async function createTemplate({ name, description, questions, actorId }) 
     await connection.beginTransaction();
 
     const [[existingTemplate]] = await connection.execute(
-      "SELECT id FROM feedback_templates WHERE name = ?",
-      [templateName],
+      `SELECT id FROM feedback_templates
+       WHERE name = ? AND (created_by IS NULL OR created_by = ?)`,
+      [templateName, actorId],
     );
 
     if (existingTemplate) {
@@ -248,16 +243,15 @@ async function findTemplateForManagement(connection, templateId) {
   return template;
 }
 
-function assertCanManageTemplate(template, actorId, actorRole) {
+function assertCanManageTemplate(template, actorId) {
   if (template.createdBy == null) {
     throw new ServiceError(403, "Built-in feedback types cannot be changed");
   }
-  if (canModerate(actorRole)) return;
   if (template.createdBy === actorId) return;
   throw new ServiceError(403, "You can manage only templates you created");
 }
 
-export async function updateTemplate({ templateId, name, description, questions, actorId, actorRole }) {
+export async function updateTemplate({ templateId, name, description, questions, actorId }) {
   const { templateName, templateDescription, normalizedQuestions } = normalizeTemplateDetails({ name, description, questions });
   const pool = getDatabasePool();
   const connection = await pool.getConnection();
@@ -265,11 +259,12 @@ export async function updateTemplate({ templateId, name, description, questions,
   try {
     await connection.beginTransaction();
     const template = await findTemplateForManagement(connection, templateId);
-    assertCanManageTemplate(template, actorId, actorRole);
+    assertCanManageTemplate(template, actorId);
 
     const [[duplicate]] = await connection.execute(
-      "SELECT id FROM feedback_templates WHERE name = ? AND id != ?",
-      [templateName, templateId],
+      `SELECT id FROM feedback_templates
+       WHERE name = ? AND id != ? AND (created_by IS NULL OR created_by = ?)`,
+      [templateName, templateId, actorId],
     );
     if (duplicate) throw new ServiceError(409, "A feedback template with this name already exists");
 
@@ -302,13 +297,13 @@ export async function updateTemplate({ templateId, name, description, questions,
   }
 }
 
-export async function setTemplateActive({ templateId, isActive, actorId, actorRole }) {
+export async function setTemplateActive({ templateId, isActive, actorId }) {
   if (typeof isActive !== "boolean") throw new ServiceError(400, "isActive must be true or false");
   const pool = getDatabasePool();
   const connection = await pool.getConnection();
   try {
     const template = await findTemplateForManagement(connection, templateId);
-    assertCanManageTemplate(template, actorId, actorRole);
+    assertCanManageTemplate(template, actorId);
     await connection.execute("UPDATE feedback_templates SET is_active = ? WHERE id = ?", [isActive, templateId]);
     return { ...template, isActive };
   } finally {
@@ -316,13 +311,13 @@ export async function setTemplateActive({ templateId, isActive, actorId, actorRo
   }
 }
 
-export async function getTemplateQuestions(templateId) {
+export async function getTemplateQuestions({ templateId, actorId }) {
   const pool = getDatabasePool();
   const [[template]] = await pool.execute(
     `SELECT id, name
      FROM feedback_templates
-     WHERE id = ?`,
-    [templateId],
+     WHERE id = ? AND (created_by IS NULL OR created_by = ?)`,
+    [templateId, actorId],
   );
 
   if (!template) {

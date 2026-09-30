@@ -120,7 +120,7 @@ DEALLOCATE PREPARE add_email_verified_at_column_statement;
 
 CREATE TABLE IF NOT EXISTS feedback_templates (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(100) NOT NULL UNIQUE,
+  name VARCHAR(100) NOT NULL,
   description TEXT,
   created_by INT NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -157,6 +157,27 @@ SET @add_template_is_active_column = (
 PREPARE add_template_is_active_column_statement FROM @add_template_is_active_column;
 EXECUTE add_template_is_active_column_statement;
 DEALLOCATE PREPARE add_template_is_active_column_statement;
+
+-- Custom templates are private to their creator, so different people may use
+-- the same name. Built-in template names remain reserved by application logic.
+SET @template_name_unique_index = (
+  SELECT index_name
+  FROM information_schema.statistics
+  WHERE table_schema = DATABASE()
+    AND table_name = 'feedback_templates'
+    AND non_unique = 0
+  GROUP BY index_name
+  HAVING COUNT(*) = 1 AND MAX(column_name) = 'name'
+  LIMIT 1
+);
+SET @drop_template_name_unique_index = IF(
+  @template_name_unique_index IS NULL,
+  'SELECT 1',
+  CONCAT('ALTER TABLE feedback_templates DROP INDEX `', REPLACE(@template_name_unique_index, '`', '``'), '`')
+);
+PREPARE drop_template_name_unique_index_statement FROM @drop_template_name_unique_index;
+EXECUTE drop_template_name_unique_index_statement;
+DEALLOCATE PREPARE drop_template_name_unique_index_statement;
 
 CREATE TABLE IF NOT EXISTS template_questions (
   id INT AUTO_INCREMENT PRIMARY KEY,

@@ -211,6 +211,21 @@ async function startServer() {
     await getDatabasePool().execute("ALTER TABLE feedback_templates ADD COLUMN created_by INT NULL AFTER description");
   }
 
+  const [templateNameUniqueIndexes] = await getDatabasePool().execute(
+    `SELECT index_name AS indexName
+     FROM information_schema.statistics
+     WHERE table_schema = DATABASE()
+       AND table_name = 'feedback_templates'
+       AND non_unique = 0
+     GROUP BY index_name
+     HAVING COUNT(*) = 1 AND MAX(column_name) = 'name'`,
+  );
+  for (const { indexName } of templateNameUniqueIndexes) {
+    if (/^[A-Za-z0-9_]+$/.test(indexName)) {
+      await getDatabasePool().execute(`ALTER TABLE feedback_templates DROP INDEX \`${indexName}\``);
+    }
+  }
+
   await ensureBuiltInTemplates();
 
   app.listen(port, () => {

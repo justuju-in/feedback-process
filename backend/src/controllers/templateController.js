@@ -28,8 +28,7 @@ export async function createTemplate(req, res) {
 export async function getTemplatesForManagement(req, res) {
   try {
     const templates = await getAllTemplates({ includeInactive: true });
-    const isModerator = String(req.auth.user.role).toLowerCase() === "admin";
-    return res.status(200).json({ templates: isModerator ? templates : templates.filter((template) => template.createdBy === req.auth.user.id) });
+    return res.status(200).json({ templates: templates.filter((template) => template.createdBy === req.auth.user.id) });
   } catch (error) { return respondWithError(res, error); }
 }
 
@@ -37,7 +36,7 @@ export async function updateTemplate(req, res) {
   const templateId = Number(req.params.id);
   if (!Number.isInteger(templateId) || templateId <= 0) return res.status(400).json({ message: "Template ID must be a positive integer" });
   try {
-    const template = await updateTemplateInDatabase({ ...req.body, templateId, actorId: req.auth.user.id, actorRole: req.auth.user.role });
+    const template = await updateTemplateInDatabase({ ...req.body, templateId, actorId: req.auth.user.id });
     return res.status(200).json({ template });
   } catch (error) { return respondWithError(res, error); }
 }
@@ -46,7 +45,7 @@ export async function setTemplateActive(req, res) {
   const templateId = Number(req.params.id);
   if (!Number.isInteger(templateId) || templateId <= 0) return res.status(400).json({ message: "Template ID must be a positive integer" });
   try {
-    const template = await setTemplateActiveInDatabase({ templateId, isActive: req.body.isActive, actorId: req.auth.user.id, actorRole: req.auth.user.role });
+    const template = await setTemplateActiveInDatabase({ templateId, isActive: req.body.isActive, actorId: req.auth.user.id });
     return res.status(200).json({ template });
   } catch (error) { return respondWithError(res, error); }
 }
@@ -61,7 +60,7 @@ export async function getTemplateQuestions(req, res) {
   }
 
   try {
-    const template = await getTemplateQuestionsFromDatabase(templateId);
+    const template = await getTemplateQuestionsFromDatabase({ templateId, actorId: req.auth.user.id });
     return res.status(200).json(template);
   } catch (error) {
     return respondWithError(res, error);
