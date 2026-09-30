@@ -1469,10 +1469,10 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
               </Field>
 
               <div className="grid gap-3">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-base font-medium text-[#1f2937]">Questions</p>
                   <button
-                    className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 disabled:opacity-60"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 disabled:opacity-60 sm:w-auto"
                     type="button"
                     onClick={addCustomQuestion}
                     disabled={customQuestions.length >= 10}
@@ -1483,7 +1483,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
                 </div>
 
                 {customQuestions.map((question, index) => (
-                  <div key={`custom-question-${index}`} className="flex gap-2">
+                  <div key={`custom-question-${index}`} className="flex flex-col gap-2 sm:flex-row">
                     <input
                       className={fieldClass}
                       placeholder={`Question ${index + 1}`}
@@ -1492,7 +1492,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
                     />
                     {customQuestions.length > 1 ? (
                       <button
-                        className="min-h-12 rounded-lg border border-red-200 bg-white px-3 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                        className="min-h-12 w-full rounded-lg border border-red-200 bg-white px-3 text-sm font-semibold text-red-600 transition hover:bg-red-50 sm:w-auto"
                         type="button"
                         onClick={() => removeCustomQuestion(index)}
                         aria-label={`Remove question ${index + 1}`}
@@ -1525,9 +1525,9 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
               </button>
               {isManageTemplatesOpen ? <div className="mt-3 grid gap-2">
                 {manageableTemplates.map((template) => (
-                  <div key={template.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5">
+                  <div key={template.id} className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-900">{template.name}</p><p className="truncate text-xs text-muted">{template.description || "Custom feedback template"}</p></div>
-                    <div className="flex shrink-0 gap-2">{Number(template.hasBeenUsed) === 0 ? <button className="text-xs font-bold text-blue-700 hover:underline" type="button" onClick={() => void editTemplate(template)}>Edit</button> : null}<button className="text-xs font-bold text-red-600 hover:underline" type="button" onClick={() => void deactivateTemplate(template)}>Disable</button></div>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1">{Number(template.hasBeenUsed) === 0 ? <button className="text-xs font-bold text-blue-700 hover:underline" type="button" onClick={() => void editTemplate(template)}>Edit</button> : null}<button className="text-xs font-bold text-red-600 hover:underline" type="button" onClick={() => void deactivateTemplate(template)}>Disable</button></div>
                   </div>
                 ))}
               </div> : null}
@@ -1537,7 +1537,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
           {savedTemplateName ? (
             <div className="mt-4 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
               <Check className="mt-0.5 shrink-0 text-emerald-700" size={18} />
-              <span><strong>{savedTemplateName}</strong> is saved and selected. You can now choose the feedback giver and send the request.</span>
+              <span className="break-words"><strong>{savedTemplateName}</strong> is saved and selected. You can now choose the feedback giver and send the request.</span>
             </div>
           ) : null}
           <div className="mt-5 flex items-center justify-end gap-3 border-t border-dashed border-slate-300 pt-4">
