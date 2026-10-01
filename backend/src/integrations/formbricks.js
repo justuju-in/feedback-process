@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import { ServiceError } from "../services/serviceError.js";
 
+export const LOCAL_FORMBRICKS_ORIGIN = "local-feedback-process";
+
 export function formbricksConfig(env = process.env) {
   const value = env.FORMBRICKS_URL || "https://app.formbricks.com";
   let url;

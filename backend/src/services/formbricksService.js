@@ -1,5 +1,5 @@
 import { getDatabasePool } from "../db/connection.js";
-import { formbricksConfig, formbricksGet, surveyIdFromInput, validateSurvey, surveySnapshot, snapshotHash, parseSingleUseLink, findSessionResponse, responseAnswers } from "../integrations/formbricks.js";
+import { formbricksConfig, formbricksGet, surveyIdFromInput, validateSurvey, surveySnapshot, snapshotHash, parseSingleUseLink, findSessionResponse, responseAnswers, LOCAL_FORMBRICKS_ORIGIN } from "../integrations/formbricks.js";
 import { ServiceError } from "./serviceError.js";
 import { writeFeedbackAuditEvent } from "./feedbackAuditService.js";
 import { notifyFeedbackSubmitted } from "./feedbackAnswerService.js";
@@ -40,6 +40,7 @@ async function lockedRequest(connection, requestId) {
 async function templateFor(connection, templateId) {
   const [[template]] = await connection.execute("SELECT survey_id AS surveyId, origin, snapshot, snapshot_hash AS snapshotHash FROM formbricks_templates WHERE template_id = ?", [templateId]);
   if (!template) throw new ServiceError(400, "This request does not use Formbricks");
+  if (template.origin === LOCAL_FORMBRICKS_ORIGIN) return { ...template, snapshot: decode(template.snapshot), isLocalTesting: true };
   if (template.origin !== formbricksConfig().origin) throw new ServiceError(409, "This template belongs to a different Formbricks server");
   return { ...template, snapshot: decode(template.snapshot) };
 }
@@ -55,6 +56,19 @@ export async function openFormbricksSession(requestId, actorId) {
     const request = await lockedRequest(connection, requestId);
     assertFormbricksGiver(request, actorId);
     const template = await templateFor(connection, request.templateId);
+    if (template.isLocalTesting) {
+      const [[existing]] = await connection.execute("SELECT request_id AS requestId FROM formbricks_sessions WHERE request_id = ?", [requestId]);
+      if (!existing) {
+        await connection.execute(
+          "INSERT INTO formbricks_sessions (request_id, survey_id, origin, single_use_id, invitation_url) VALUES (?, ?, ?, ?, ?)",
+          [requestId, template.surveyId, template.origin, `local-${requestId}`, `local-feedback-process://${requestId}`],
+        );
+        await writeFeedbackAuditEvent({ requestId, actorId, eventType: "formbricks_survey_opened", connection });
+      }
+      await connection.execute("UPDATE feedback_requests SET status = 'in_progress' WHERE id = ? AND status = 'requested'", [requestId]);
+      await connection.commit();
+      return { local: true, questions: template.snapshot.questions, blocks: template.snapshot.blocks || [], origin: template.origin };
+    }
     await checkedSurvey(template);
     const [[existing]] = await connection.execute("SELECT invitation_url AS link FROM formbricks_sessions WHERE request_id = ?", [requestId]);
     let link = existing?.link;
@@ -70,6 +84,95 @@ export async function openFormbricksSession(requestId, actorId) {
     return { link, embedUrl: embedded.toString(), origin: template.origin };
   } catch (error) { await connection.rollback(); throw error; }
   finally { connection.release(); }
+}
+
+function normalizeLocalAnswer(value) {
+  if (Array.isArray(value)) return value.map((item) => String(item || "").trim()).filter(Boolean);
+  if (typeof value === "boolean" || typeof value === "number") return value;
+  return String(value ?? "").trim();
+}
+
+function labelText(value) {
+  if (typeof value === "string") return value.replace(/<[^>]*>/g, "");
+  if (value && typeof value === "object") return labelText(value.default || Object.values(value).find((item) => typeof item === "string") || "");
+  return "";
+}
+
+function visibleLocalQuestionIds(snapshot, submitted) {
+  const blocks = Array.isArray(snapshot.blocks) ? snapshot.blocks : [];
+  if (!blocks.length) return new Set((snapshot.questions || []).map((question) => question.id));
+
+  const conditionalTargets = new Map();
+  for (const block of blocks) {
+    for (const rule of block.logic || []) {
+      const sourceId = rule.conditions?.conditions?.[0]?.leftOperand?.value;
+      const choiceId = rule.conditions?.conditions?.[0]?.rightOperand?.value;
+      for (const action of rule.actions || []) {
+        if (action.objective === "jumpToBlock" && action.target && sourceId && choiceId) {
+          conditionalTargets.set(action.target, { sourceId, choiceId });
+        }
+      }
+    }
+  }
+
+  const questionsById = new Map((snapshot.questions || []).map((question) => [question.id, question]));
+  const visible = new Set();
+  for (const block of blocks) {
+    const condition = conditionalTargets.get(block.id);
+    if (condition) {
+      const source = questionsById.get(condition.sourceId);
+      const expected = labelText(source?.choices?.find((choice) => choice.id === condition.choiceId)?.label);
+      if (normalizeLocalAnswer(submitted[condition.sourceId]) !== expected) continue;
+    }
+    for (const element of block.elements || []) visible.add(element.id);
+  }
+  return visible;
+}
+
+export async function submitLocalFormbricksSession(requestId, actorId, body) {
+  const connection = await getDatabasePool().getConnection();
+  let changed = false;
+  let result = { state: "waiting", completed: false };
+  try {
+    await connection.beginTransaction();
+    const request = await lockedRequest(connection, requestId);
+    assertFormbricksGiver(request, actorId);
+    const template = await templateFor(connection, request.templateId);
+    if (!template.isLocalTesting) throw new ServiceError(400, "This request uses an external Formbricks survey");
+
+    const submitted = body?.answers && typeof body.answers === "object" && !Array.isArray(body.answers) ? body.answers : {};
+    const answers = {};
+    const visibleQuestionIds = visibleLocalQuestionIds(template.snapshot, submitted);
+    for (const question of template.snapshot.questions || []) {
+      if (!visibleQuestionIds.has(question.id)) continue;
+      const value = normalizeLocalAnswer(submitted[question.id]);
+      const empty = Array.isArray(value) ? value.length === 0 : value === "" || value === false || value == null;
+      if (question.required && empty) throw new ServiceError(400, "Please answer all required questions");
+      if (!empty) answers[question.id] = value;
+    }
+
+    await connection.execute(
+      `INSERT INTO formbricks_sessions (request_id, survey_id, origin, single_use_id, invitation_url, answers, completed, last_checked_at)
+       VALUES (?, ?, ?, ?, ?, ?, TRUE, CURRENT_TIMESTAMP)
+       ON DUPLICATE KEY UPDATE answers = VALUES(answers), completed = TRUE, last_checked_at = CURRENT_TIMESTAMP`,
+      [requestId, template.surveyId, template.origin, `local-${requestId}`, `local-feedback-process://${requestId}`, JSON.stringify(answers)],
+    );
+    await connection.execute("UPDATE feedback_requests SET status = 'submitted', submitted_at = CURRENT_TIMESTAMP WHERE id = ?", [requestId]);
+    await writeFeedbackAuditEvent({ requestId, actorId, eventType: "feedback_submitted", details: JSON.stringify({ provider: "formbricks-local-test" }), connection });
+    changed = true;
+    result = { state: "completed", completed: true };
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+  if (changed) {
+    try { await notifyFeedbackSubmitted(requestId, actorId); }
+    catch { console.error("Local Formbricks feedback saved, but a notification failed"); }
+  }
+  return result;
 }
 
 export async function syncFormbricksSession(requestId, actorId) {
@@ -116,4 +219,3 @@ export async function syncFormbricksSession(requestId, actorId) {
   }
   return { state, completed };
 }
-
