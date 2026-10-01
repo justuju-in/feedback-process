@@ -43,6 +43,8 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       EMAIL_FROM: ${EMAIL_FROM:-}
+      FORMBRICKS_URL: ${FORMBRICKS_URL:-https://app.formbricks.com}
+      FORMBRICKS_API_KEY: ${FORMBRICKS_API_KEY:-}
     ports:
       - "127.0.0.1:5100:5000"
     networks:

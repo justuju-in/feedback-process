@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test:local": "node scripts/start-local-test.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

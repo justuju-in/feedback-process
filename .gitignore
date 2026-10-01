@@ -6,3 +6,8 @@ dist
 .env.local
 .env.save
 npm-debug.log*
+
+.next-local-test
+
+# Local Formbricks runtime and generated secrets
+.local/formbricks/

@@ -14,6 +14,10 @@ import feedbackAnalyticsRouter from "./routes/feedbackAnalyticsRoutes.js";
 import { startFeedbackReminderJob } from "./jobs/feedbackReminderJob.js";
 import { getDatabasePool } from "./db/connection.js";
 
+import formbricksRouter from "./routes/formbricksRoutes.js";
+import { ensureFormbricksSchema } from "./db/formbricksSchema.js";
+import { startFormbricksSyncJob } from "./jobs/formbricksSyncJob.js";
+
 const app = express();
 const port = process.env.PORT || 5000;
 // Allow the local Next.js dev server even if it automatically uses 3001/3002
@@ -51,6 +55,7 @@ app.use("/users", userRouter);
 app.use("/notifications", notificationRouter);
 app.use("/feedback-reports", feedbackReportRouter);
 app.use("/feedback-analytics", feedbackAnalyticsRouter);
+app.use("/formbricks", formbricksRouter);
 app.use("/templates", templateRouter);
 app.use("/feedback-requests", feedbackRequestRouter);
 
@@ -59,6 +64,7 @@ app.use((req, res) => {
 });
 
 async function startServer() {
+  await ensureFormbricksSchema(getDatabasePool());
   // Keep the password-reuse safeguard available for both new and existing databases.
   await getDatabasePool().execute(
     `CREATE TABLE IF NOT EXISTS password_history (
@@ -130,9 +136,10 @@ async function startServer() {
     await getDatabasePool().execute("ALTER TABLE feedback_templates ADD COLUMN created_by INT NULL AFTER description");
   }
 
-  app.listen(port, () => {
+  app.listen(port, process.env.BIND_HOST || "0.0.0.0", () => {
     console.log(`Feedback Process API running at http://localhost:${port}`);
     startFeedbackReminderJob();
+    startFormbricksSyncJob();
   });
 }
 

@@ -12,6 +12,8 @@ import { ServiceError } from "./serviceError.js";
 import { createInAppNotification } from "./notificationService.js";
 import { writeFeedbackAuditEvent } from "./feedbackAuditService.js";
 
+import { getFormbricksFeedback } from "./formbricksReadService.js";
+
 const requestSelect = `
   SELECT
     request.id,
@@ -27,6 +29,7 @@ const requestSelect = `
     receiver.email AS receiverEmail,
     request.template_id AS templateId,
     template.name AS templateName,
+    CASE WHEN EXISTS (SELECT 1 FROM formbricks_templates fb WHERE fb.template_id = request.template_id) THEN 'formbricks' ELSE 'native' END AS provider,
     request.message,
     request.purpose,
     request.visibility,
@@ -561,6 +564,7 @@ export async function getFeedbackRequestById(requestId) {
   return {
     ...request,
     viewers,
+    formbricks: await getFormbricksFeedback(pool, requestId, request.templateId),
     questions,
     answers,
     draft: draft ? { ...draft, answers: typeof draft.answers === "string" ? JSON.parse(draft.answers) : draft.answers } : null,

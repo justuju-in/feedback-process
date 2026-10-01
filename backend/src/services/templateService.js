@@ -24,9 +24,11 @@ export async function getAllTemplates({ includeInactive = false } = {}) {
   const [templates] = await pool.query(
     `SELECT template.id, template.name, template.description,
         template.created_by AS createdBy, template.is_active AS isActive,
-        template.created_at AS createdAt, creator.name AS createdByName
+        template.created_at AS createdAt, creator.name AS createdByName,
+        CASE WHEN fb.template_id IS NULL THEN 'native' ELSE 'formbricks' END AS provider
      FROM feedback_templates AS template
      LEFT JOIN users AS creator ON creator.id = template.created_by
+     LEFT JOIN formbricks_templates AS fb ON fb.template_id = template.id
      ${includeInactive ? "" : "WHERE template.is_active = TRUE"}
      ORDER BY template.is_active DESC, template.id`,
   );
@@ -134,6 +136,8 @@ export async function updateTemplate({ templateId, name, description, questions,
     await connection.beginTransaction();
     const template = await findTemplateForManagement(connection, templateId);
     assertCanManageTemplate(template, actorId, actorRole);
+    const [[external]] = await connection.execute("SELECT template_id FROM formbricks_templates WHERE template_id = ?", [templateId]);
+    if (external) throw new ServiceError(409, "Edit the survey in Formbricks, then connect it as a new template version.");
 
     const [[duplicate]] = await connection.execute(
       "SELECT id FROM feedback_templates WHERE name = ? AND id != ?",

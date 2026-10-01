@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "test:formbricks": "node --test tests/formbricks.test.js",
+    "test:formbricks:integration": "node --test tests/formbricks.integration.test.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

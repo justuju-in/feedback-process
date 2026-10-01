@@ -85,3 +85,15 @@ Open <http://localhost:3000>.
 
 - Do not commit `backend/.env` or any passwords.
 - If the app cannot connect, first check that MySQL and the backend at `http://localhost:5000/health` are running.
+
+## Formbricks surveys
+
+See [Formbricks setup and supported features](docs/FORMBRICKS.md) to connect a
+Cloud or self-hosted Formbricks survey to the existing feedback workflow.
+
+## Local test login
+
+Run `npm run test:local`, then open http://localhost:3117/login. Use the normal
+email/password form with the Rani, Pooja, or Shanti local test credentials in
+[the setup guide](docs/FORMBRICKS.md#local-testing-with-the-same-normal-login-as-the-formio-branch).
+The launcher starts an isolated local database.

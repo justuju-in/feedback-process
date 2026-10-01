@@ -1,6 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import FormbricksNativeBuilder from "./components/FormbricksNativeBuilder";
+import FormbricksBuilder from "./components/FormbricksBuilder";
+import { FormbricksConnect, FormbricksSurvey, FormbricksAnswers } from "./components/Formbricks";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Check,
@@ -63,6 +66,7 @@ export default function Home() {
   const [followUpRequest, setFollowUpRequest] = useState(null);
   const [replacementRequest, setReplacementRequest] = useState(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [nativeTemplateSelection, setNativeTemplateSelection] = useState(null);
   const [activePage, setActivePage] = useState("dashboard");
   const [requestSearch, setRequestSearch] = useState("");
   const [requestStatus, setRequestStatus] = useState("all");
@@ -220,7 +224,7 @@ export default function Home() {
 
   async function createTemplate(payload) {
     try {
-      const data = await api("/templates", { method: "POST", body: JSON.stringify(payload) });
+      const data = await api(payload.provider === "formbricks" ? (payload.createSurvey ? "/formbricks/forms" : "/formbricks/templates") : "/templates", { method: "POST", body: JSON.stringify(payload) });
       setTemplates((currentTemplates) => [...currentTemplates, data.template]);
       return { ok: true, template: data.template };
     } catch (templateError) {
@@ -435,7 +439,7 @@ export default function Home() {
 
       <MobileNavigation activePage={activePage} showSCReview={isSCReviewer} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
 
-      <div className={`grid flex-1 ${isCreateOpen ? "xl:grid-cols-[260px_1fr_420px]" : "xl:grid-cols-[260px_1fr]"}`}>
+      <div className={`grid flex-1 ${isCreateOpen && activePage !== "forms" ? "xl:grid-cols-[260px_1fr_420px]" : "xl:grid-cols-[260px_1fr]"}`}>
         <Sidebar activePage={activePage} showSCReview={isSCReviewer} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
 
         <main className="border-x border-line/70 bg-white/55 px-5 py-7 backdrop-blur-sm sm:px-7 sm:py-8 lg:px-9 xl:px-10">
@@ -445,8 +449,8 @@ export default function Home() {
                 <Sparkles size={15} />
                 Feedback workspace
               </div>
-              <h1 className="text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl">{activePage === "dashboard" ? "Feedback" : activePage === "history" ? "Feedback History" : activePage === "reports" ? "SC Team Review" : activePage === "people" ? "People" : activePage === "analytics" ? "Team analytics" : "Feedback Requests"}</h1>
-              <p className="mt-2 text-base text-muted">{activePage === "dashboard" ? "Request, share, and review thoughtful feedback in one place." : activePage === "history" ? "Review completed feedback and past request decisions." : activePage === "reports" ? "Private reports that need SC Team review." : activePage === "people" ? "Manage account access and keep open feedback requests accurate." : activePage === "analytics" ? "Anonymous totals to help the team improve its feedback process." : "Review, manage, and respond to every feedback request."}</p>
+              <h1 className="text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl">{activePage === "forms" ? "Formbricks builder" : activePage === "dashboard" ? "Feedback" : activePage === "history" ? "Feedback History" : activePage === "reports" ? "SC Team Review" : activePage === "people" ? "People" : activePage === "analytics" ? "Team analytics" : "Feedback Requests"}</h1>
+              <p className="mt-2 text-base text-muted">{activePage === "forms" ? "Build your feedback forms here using the original Formbricks editor." : activePage === "dashboard" ? "Request, share, and review thoughtful feedback in one place." : activePage === "history" ? "Review completed feedback and past request decisions." : activePage === "reports" ? "Private reports that need SC Team review." : activePage === "people" ? "Manage account access and keep open feedback requests accurate." : activePage === "analytics" ? "Anonymous totals to help the team improve its feedback process." : "Review, manage, and respond to every feedback request."}</p>
             </div>
           </div>
 
@@ -483,6 +487,10 @@ export default function Home() {
           {schedules.length ? <section className="mt-5 rounded-2xl border border-line/80 bg-white p-6 shadow-[0_10px_30px_rgba(15,23,42,0.06)]"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-bold uppercase tracking-wide text-violet-600">Scheduled feedback</p><h2 className="mt-1 text-xl font-bold text-slate-950">Your schedules</h2></div><span className="rounded-full bg-violet-50 px-3 py-1 text-sm font-semibold text-violet-700">{schedules.filter((schedule) => schedule.isActive).length} active</span></div><div className="mt-4 grid gap-3">{schedules.map((schedule) => <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3" key={schedule.id}><div><p className="font-semibold text-slate-900">{schedule.templateName} · {schedule.giverName} → {schedule.receiverName}</p><p className="mt-1 text-sm text-muted">{schedule.frequency === "once" ? `One time at ${schedule.scheduledTime || "scheduled time"}` : schedule.frequency === "quarterly" ? "Every 3 months" : "Monthly"} · Next request: {formatDueDate(schedule.nextRunDate)} · {schedule.dueInDays} days to respond</p></div><button className={secondaryButton} type="button" onClick={() => void setScheduleStatus(schedule.id, !schedule.isActive)}>{schedule.isActive ? "Pause" : "Resume"}</button></div>)}</div></section> : null}
           </> : null}
 
+          {activePage === "forms" ? <FormbricksNativeBuilder email={currentUser.email} onUse={async(template)=>{
+            setTemplates(items=>items.some(t=>t.id===template.id)?items:[...items,template]);
+            setNativeTemplateSelection(template);setActivePage("dashboard");setIsCreateOpen(true);
+          }} /> : null}
           {activePage === "reports" && isSCReviewer ? <SCReportReview reports={reports} onReview={(reportId, status) => void reviewReport(reportId, status)} onOpenRequest={(requestId) => void openRequest(requestId)} /> : null}
           {activePage === "people" && isSCReviewer ? <PeopleManagement users={users} currentUserId={currentUserId} onUpdateStatus={(user, isActive) => void updateUserStatus(user, isActive)} onUpdateRole={(user, role) => void updateUserRole(user, role)} /> : null}
           {activePage === "analytics" && isSCReviewer ? <AnalyticsDashboard analytics={analytics} /> : null}
@@ -605,7 +613,9 @@ export default function Home() {
         </main>
 
         {isCreateOpen ? (
-          <CreateFeedbackPanel
+          <div className={activePage === "forms" ? "hidden" : "contents"}><CreateFeedbackPanel
+            initialTemplateSelection={nativeTemplateSelection}
+            onOpenBuilder={() => setActivePage("forms")}
             currentUserId={currentUserId}
             currentUser={currentUser}
             users={users}
@@ -616,7 +626,7 @@ export default function Home() {
             onUpdateTemplate={updateTemplate}
             onSetTemplateStatus={setTemplateStatus}
             onClose={() => { setIsCreateOpen(false); setReplacementRequest(null); }}
-          />
+          /></div>
         ) : null}
       </div>
 
@@ -628,6 +638,7 @@ export default function Home() {
           currentUserId={currentUserId}
           currentUserRole={currentUser.role}
           onClose={() => setSelectedRequest(null)}
+          onFormbricksCompleted={async () => { await openRequest(selectedRequest.id); await loadRequests(currentUserId); }}
           onSubmit={submitAnswers}
           onSaveDraft={saveDraft}
           onAddAttachment={addAttachment}
@@ -732,6 +743,7 @@ function MobileNavigation({ activePage, showSCReview, onSelect }) {
   const items = [
     { page: "dashboard", label: "Dashboard", icon: <HomeIcon size={17} /> },
     { page: "requests", label: "Requests", icon: <Inbox size={17} /> },
+    { page: "forms", label: "Formbricks builder", icon: <Sparkles size={17} /> },
     { page: "history", label: "History", icon: <HistoryIcon size={17} /> },
     ...(showSCReview ? [{ page: "reports", label: "SC Review", icon: <Inbox size={17} /> }, { page: "analytics", label: "Analytics", icon: <BarChart3 size={17} /> }, { page: "people", label: "People", icon: <UsersRound size={17} /> }] : []),
   ];
@@ -772,6 +784,7 @@ function Sidebar({ activePage, showSCReview, onSelect }) {
       <nav className="space-y-2 text-base font-medium">
         <SidebarItem active={activePage === "dashboard"} icon={<HomeIcon size={22} />} label="Dashboard" onClick={() => onSelect("dashboard")} />
         <SidebarItem active={activePage === "requests"} icon={<Inbox size={22} />} label="Feedback Requests" onClick={() => onSelect("requests")} />
+        <SidebarItem active={activePage === "forms"} icon={<Sparkles size={22} />} label="Formbricks builder" onClick={() => onSelect("forms")} />
         <SidebarItem active={activePage === "history"} icon={<HistoryIcon size={22} />} label="Feedback History" onClick={() => onSelect("history")} />
         {showSCReview ? <SidebarItem active={activePage === "reports"} icon={<Inbox size={22} />} label="SC Team Review" onClick={() => onSelect("reports")} /> : null}
         {showSCReview ? <SidebarItem active={activePage === "analytics"} icon={<BarChart3 size={22} />} label="Team analytics" onClick={() => onSelect("analytics")} /> : null}
@@ -876,7 +889,7 @@ function StatCard({ icon, tone, label, value, helper }) {
   );
 }
 
-function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, replacementRequest, onCreate, onCreateTemplate, onUpdateTemplate, onSetTemplateStatus, onClose }) {
+function CreateFeedbackPanel({ initialTemplateSelection, onOpenBuilder, currentUserId, currentUser, users, templates, replacementRequest, onCreate, onCreateTemplate, onUpdateTemplate, onSetTemplateStatus, onClose }) {
   const possibleGivers = users.filter((user) => user.id !== currentUserId && user.isActive !== false);
   const [giverId, setGiverId] = useState("");
   const [templateId, setTemplateId] = useState("");
@@ -943,6 +956,11 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
 
   async function submit(event) {
     event.preventDefault();
+    if (isCustomTemplateOpen) {
+      setNoticeTone("error");
+      setNotice("Save your custom form first, then send the request.");
+      return;
+    }
     if (!giverId || Number(giverId) === currentUserId) return;
     if (!recurring && dueDate && dueDate < today) {
       setNoticeTone("error");
@@ -1041,6 +1059,11 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
   }
 
   async function editTemplate(template) {
+    if (template.provider === "formbricks") {
+      setNoticeTone("error");
+      setNotice("Use Custom to create a new form version. Existing forms keep their original questions to preserve submitted feedback.");
+      return;
+    }
     try {
       const data = await api(`/templates/${template.id}/questions`);
       setEditingTemplateId(template.id);
@@ -1067,6 +1090,12 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
     setNotice(`${template.name} is no longer available for new requests.`);
   }
 
+  useEffect(() => {
+    if (!initialTemplateSelection) return;
+    setTemplateId(initialTemplateSelection.id);
+    setIsCustomTemplateOpen(false);
+    setNotice(null);
+  }, [initialTemplateSelection]);
   const canModerateTemplates = ["admin", "hr", "sc"].includes(String(currentUser?.role || "").toLowerCase());
   const manageableTemplates = templates.filter((template) => canModerateTemplates || template.createdBy === currentUserId);
 
@@ -1089,7 +1118,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
             <select className="w-full bg-transparent outline-none" value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
               {templates.map((template) => (
                 <option key={template.id} value={template.id}>
-                  {template.name}
+                  {template.name}{template.provider === "formbricks" ? " · Formbricks" : ""}
                 </option>
               ))}
             </select>
@@ -1114,11 +1143,21 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
           <input className={fieldClass} type="date" min={today} value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
         </Field> : null}
 
+        <FormbricksConnect onOpenBuilder={onOpenBuilder} canConnect={canModerateTemplates}
+          templates={templates.filter((template) => template.provider === "formbricks")}
+          selectedTemplateId={templateId}
+          onSelect={(template) => { setTemplateId(template.id); setIsCustomTemplateOpen(false); }}
+          onConnect={async (payload) => {
+          const result = await onCreateTemplate(payload);
+          if (result.ok) { setTemplateId(result.template.id); setSavedTemplateName(result.template.name); }
+          return result;
+        }} />
+
         <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/70 p-3.5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-bold text-slate-900">Need your own questions?</p>
-              <p className="mt-0.5 text-sm text-muted">Create a reusable custom template.</p>
+              <p className="mt-0.5 text-sm text-muted">Choose question types and add your own options.</p>
             </div>
             <button
               className={secondaryButton}
@@ -1138,7 +1177,11 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, rep
             </button>
           </div>
 
-          {isCustomTemplateOpen ? (
+          {isCustomTemplateOpen && !editingTemplateId ? <FormbricksBuilder onSave={async (payload) => {
+            const result = await onCreateTemplate(payload);
+            if (result.ok) { setTemplateId(result.template.id); setSavedTemplateName(result.template.name); setIsCustomTemplateOpen(false); }
+            return result;
+          }} /> : isCustomTemplateOpen ? (
             <div className="mt-5 grid gap-4">
               <Field label="Custom feedback type name">
                 <input
@@ -1571,8 +1614,9 @@ function InlineDatePicker({ dueDate, month, onMonthChange, onChange, today }) {
   );
 }
 
-function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSubmit, onSaveDraft, onAddAttachment, onAcknowledge, onCreateFollowUp, onUpdateFollowUp, onDiscussion, onReport, onModerate }) {
+function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onFormbricksCompleted, onSubmit, onSaveDraft, onAddAttachment, onAcknowledge, onCreateFollowUp, onUpdateFollowUp, onDiscussion, onReport, onModerate }) {
   const template = request.template;
+  const usesFormbricks = request.provider === "formbricks";
   const isRequester = Number(currentUserId) === Number(request.requesterId);
   const isGiver = Number(currentUserId) === Number(request.giverId);
   const isReceiver = Number(currentUserId) === Number(request.receiverId);
@@ -1673,7 +1717,8 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
             {attachmentNotice ? <p className={`mt-2 text-sm font-medium ${attachmentNotice === "Link added." ? "text-emerald-700" : "text-red-700"}`}>{attachmentNotice}</p> : null}
           </section> : null}
           {request.attachments?.length ? <section className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="font-semibold text-slate-900">Shared links</p><ul className="mt-2 grid gap-2">{request.attachments.map((attachment) => <li key={attachment.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-3 py-2 text-sm"><span><span className="font-semibold text-slate-800">{attachment.label}</span><span className="ml-2 text-slate-500">added by {attachment.addedByName}</span></span><a className="font-semibold text-blue-700 hover:underline" href={attachment.url} target="_blank" rel="noreferrer">Open link</a></li>)}</ul></section> : null}
-          {!wasStopped ? template.questions.map((question, index) => (
+          {usesFormbricks && !wasStopped ? (canSubmit ? <FormbricksSurvey key={request.id} requestId={request.id} onCompleted={onFormbricksCompleted} /> : <FormbricksAnswers feedback={request.formbricks} />) : null}
+          {!usesFormbricks && !wasStopped ? template.questions.map((question, index) => (
             <Field key={question.id} label={<span className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">{index + 1}</span><span>{question.questionText}</span></span>}>
               <textarea
                 className={`${fieldClass} min-h-28 resize-y border-slate-200 bg-slate-50/70 leading-7 focus:bg-white disabled:bg-surface disabled:text-muted`}
@@ -1729,12 +1774,12 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
             <button className={secondaryButton} type="button" onClick={onClose}>
               Close
             </button>
-            {canSubmit ? (
+            {canSubmit && !usesFormbricks ? (
               <button className={secondaryButton} type="button" onClick={() => void saveCurrentDraft()}>
                 Save draft
               </button>
             ) : null}
-            {canSubmit ? (
+            {canSubmit && !usesFormbricks ? (
               <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-5 font-semibold text-white shadow-lg shadow-blue-200 transition hover:from-blue-700 hover:to-indigo-700" type="submit">
                 <Check size={16} />
                 Submit feedback
