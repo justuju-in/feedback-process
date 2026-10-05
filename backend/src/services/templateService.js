@@ -94,6 +94,7 @@ export async function getAllTemplates({ includeInactive = false, userId = null }
     `SELECT template.id, template.name, template.description,
         template.created_by AS createdBy, template.is_active AS isActive,
         template.created_at AS createdAt, creator.name AS createdByName,
+        CASE WHEN EXISTS (SELECT 1 FROM formbricks_templates fb WHERE fb.template_id = template.id) THEN 'formbricks' ELSE 'native' END AS provider,
         EXISTS(SELECT 1 FROM feedback_requests AS request WHERE request.template_id = template.id) AS hasBeenUsed
      FROM feedback_templates AS template
      LEFT JOIN users AS creator ON creator.id = template.created_by
@@ -260,6 +261,8 @@ export async function updateTemplate({ templateId, name, description, questions,
     await connection.beginTransaction();
     const template = await findTemplateForManagement(connection, templateId);
     assertCanManageTemplate(template, actorId);
+    const [[external]] = await connection.execute("SELECT template_id FROM formbricks_templates WHERE template_id = ?", [templateId]);
+    if (external) throw new ServiceError(409, "Create a new form version to preserve existing feedback.");
 
     const [[duplicate]] = await connection.execute(
       `SELECT id FROM feedback_templates

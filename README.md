@@ -85,3 +85,20 @@ Open <http://localhost:3000>.
 
 - Do not commit `backend/.env` or any passwords.
 - If the app cannot connect, first check that MySQL and the backend at `http://localhost:5000/health` are running.
+
+## Formbricks custom templates
+
+In Request feedback, choose Create custom template, then Formbricks custom form.
+Save the form before continuing. Simple text questions and existing template
+management remain available. Formbricks forms are private to their creator and
+can be answered by the selected feedback giver. Create a new form version to
+change questions without changing past responses. Give feedback continues to
+use the existing text templates.
+
+For deployed form creation, configure the backend's FORMBRICKS_URL,
+FORMBRICKS_API_KEY, and FORMBRICKS_WORKSPACE_ID. Credentials stay on the server.
+Without a workspace, development mode supports local test forms; production
+returns a configuration error instead. Startup creates the two additional
+Formbricks tables without replacing existing tables.
+
+Run the form conversion checks with `node --test backend/tests/formbricks.test.js backend/tests/formbricksBuilder.test.js`.

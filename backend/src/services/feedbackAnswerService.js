@@ -110,6 +110,8 @@ export async function submitFeedbackAnswers(requestId, giverId, answers) {
       );
     }
 
+    const [[external]] = await connection.execute("SELECT template_id FROM formbricks_templates WHERE template_id = ?", [request.templateId]);
+    if (external) throw new ServiceError(409, "Complete this feedback in its Formbricks survey");
     const questions = await getQuestionsForRequest(connection, requestId, request.templateId);
 
     const normalizedAnswers = normalizeAnswers(answers, questions);
@@ -156,6 +158,10 @@ export async function submitFeedbackAnswers(requestId, giverId, answers) {
     connection.release();
   }
 
+  return notifyFeedbackSubmitted(requestId, giverId);
+}
+
+export async function notifyFeedbackSubmitted(requestId, giverId) {
   const feedbackRequest = await getFeedbackRequestById(requestId);
   const recipients = [...new Set([feedbackRequest.requesterId, feedbackRequest.receiverId])]
     .filter((userId) => userId !== giverId);
@@ -196,6 +202,8 @@ export async function saveFeedbackDraft(requestId, giverId, answers) {
   if (!request) throw new ServiceError(404, "Feedback request not found");
   if (request.giverId !== giverId) throw new ServiceError(403, "Only the selected feedback giver can save a draft");
   if (!["requested", "in_progress", "overdue"].includes(request.status)) throw new ServiceError(409, "A draft can only be saved for an active request");
+  const [[external]] = await pool.execute("SELECT template_id FROM formbricks_templates WHERE template_id = ?", [request.templateId]);
+  if (external) throw new ServiceError(409, "Drafts for this request are saved in Formbricks");
   const questions = await getQuestionsForRequest(pool, requestId, request.templateId);
   const normalizedAnswers = normalizeAnswers(answers, questions);
   validateAnswers(normalizedAnswers, questions, false);

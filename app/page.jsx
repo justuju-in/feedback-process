@@ -1,5 +1,7 @@
 "use client";
 
+import FormbricksBuilder from "./components/FormbricksBuilder";
+import { FormbricksSurvey, FormbricksAnswers } from "./components/Formbricks";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -239,7 +241,7 @@ export default function Home() {
 
   async function createTemplate(payload) {
     try {
-      const data = await api("/templates", { method: "POST", body: JSON.stringify(payload) });
+      const data = await api(payload.provider === "formbricks" ? "/formbricks/forms" : "/templates", { method: "POST", body: JSON.stringify(payload) });
       setTemplates((currentTemplates) => [...currentTemplates, data.template]);
       return { ok: true, template: data.template };
     } catch (templateError) {
@@ -658,7 +660,7 @@ export default function Home() {
             onClose={() => { setIsCreateOpen(false); setReplacementRequest(null); }}
           />
         ) : null}
-        {isGiveFeedbackOpen ? <GiveFeedbackModal currentUser={currentUser} users={users} templates={templates} onClose={() => setIsGiveFeedbackOpen(false)} onSubmit={giveDirectFeedback} /> : null}
+        {isGiveFeedbackOpen ? <GiveFeedbackModal currentUser={currentUser} users={users} templates={templates.filter((template) => template.provider !== "formbricks")} onClose={() => setIsGiveFeedbackOpen(false)} onSubmit={giveDirectFeedback} /> : null}
       </div>
 
       <AppFooter />
@@ -669,6 +671,7 @@ export default function Home() {
           currentUserId={currentUserId}
           currentUserRole={currentUser.role}
           onClose={() => setSelectedRequest(null)}
+          onFormbricksCompleted={async () => { await openRequest(selectedRequest.id); await loadRequests(currentUserId); }}
           onSubmit={submitAnswers}
           onSaveDraft={saveDraft}
           onAddAttachment={addAttachment}
@@ -1111,6 +1114,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
   const [viewerIds, setViewerIds] = useState([]);
   const [showMoreOptions, setShowMoreOptions] = useState(false);
   const [isCustomTemplateOpen, setIsCustomTemplateOpen] = useState(false);
+  const [customEditor, setCustomEditor] = useState("simple");
   const [savedTemplateName, setSavedTemplateName] = useState("");
   const [customTemplateName, setCustomTemplateName] = useState("");
   const [customTemplateDescription, setCustomTemplateDescription] = useState("");
@@ -1198,6 +1202,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
 
   async function submit(event) {
     event.preventDefault();
+    if (isCustomTemplateOpen && !editingTemplateId && customEditor === "formbricks") { setNoticeTone("error"); setNotice("Save or close your custom template before sending the request."); return; }
     const selectedGivers = isGroupFeedback ? giverIds : [Number(giverId)];
     if (!selectedGivers.length || selectedGivers.includes(currentUserId)) return;
     if (dueDate && dueDate < today) {
@@ -1249,6 +1254,7 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
 
   function continueToStep(nextStep) {
     setNotice(null);
+    if (isCustomTemplateOpen && !editingTemplateId && customEditor === "formbricks") { setNoticeTone("error"); setNotice("Save or close your custom template before continuing."); return; }
     if (nextStep === 2 && !templateId) {
       setNoticeTone("error");
       setNotice("Choose a feedback type to continue.");
@@ -1344,6 +1350,11 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
   }
 
   async function editTemplate(template) {
+    if (template.provider === "formbricks") {
+      setNoticeTone("error");
+      setNotice("Create a new custom form version to preserve existing feedback.");
+      return;
+    }
     if (template.createdBy == null) {
       setNoticeTone("error");
       setNotice("Built-in feedback types cannot be edited. Use Custom to create your own questions.");
@@ -1490,7 +1501,14 @@ function CreateFeedbackPanel({ currentUserId, currentUser, users, templates, req
             </button>
           </div>
 
-          {isCustomTemplateOpen ? (
+          {isCustomTemplateOpen && !editingTemplateId ? <div className="mt-4 grid gap-2">
+            <label className="grid gap-1 text-sm font-semibold">Template editor<select className={fieldClass} value={customEditor} onChange={(event) => setCustomEditor(event.target.value)}><option value="formbricks">Formbricks custom form</option><option value="simple">Simple text questions</option></select></label>
+          </div> : null}
+          {isCustomTemplateOpen && !editingTemplateId && customEditor === "formbricks" ? <FormbricksBuilder onSave={async (payload) => {
+            const result = await onCreateTemplate(payload);
+            if (result.ok) { setTemplateId(result.template.id); setSavedTemplateName(result.template.name); setIsCustomTemplateOpen(false); setNotice(null); }
+            return result;
+          }} /> : isCustomTemplateOpen ? (
             <div className="mt-5 grid gap-4">
               <Field label="Custom feedback type name (required)">
                 <input
@@ -1896,8 +1914,9 @@ function InlineDatePicker({ dueDate, month, onMonthChange, onChange, today }) {
   );
 }
 
-function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSubmit, onSaveDraft, onAddAttachment, onAcknowledge, onCreateFollowUp, onUpdateFollowUp, onDiscussion, onReport, onModerate }) {
+function FeedbackDetail({ request, currentUserId, currentUserRole, onFormbricksCompleted, onClose, onSubmit, onSaveDraft, onAddAttachment, onAcknowledge, onCreateFollowUp, onUpdateFollowUp, onDiscussion, onReport, onModerate }) {
   const template = request.template;
+  const usesFormbricks = request.provider === "formbricks";
   const isRequester = Number(currentUserId) === Number(request.requesterId);
   const isGiver = Number(currentUserId) === Number(request.giverId);
   const isReceiver = Number(currentUserId) === Number(request.receiverId);
@@ -2002,7 +2021,8 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
             {attachmentNotice ? <p className={`mt-2 text-sm font-medium ${attachmentNotice === "Link added." ? "text-emerald-700" : "text-red-700"}`}>{attachmentNotice}</p> : null}
           </section> : null}
           {request.attachments?.length ? <section className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="font-semibold text-slate-900">Shared links</p><ul className="mt-2 grid gap-2">{request.attachments.map((attachment) => <li key={attachment.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-3 py-2 text-sm"><span><span className="font-semibold text-slate-800">{attachment.label}</span><span className="ml-2 text-slate-500">added by {attachment.addedByName}</span></span><a className="font-semibold text-blue-700 hover:underline" href={attachment.url} target="_blank" rel="noreferrer">Open link</a></li>)}</ul></section> : null}
-          {!wasStopped ? template.questions.map((question, index) => (
+          {usesFormbricks && !wasStopped ? (canSubmit ? <FormbricksSurvey key={request.id} requestId={request.id} onCompleted={onFormbricksCompleted} /> : <FormbricksAnswers feedback={request.formbricks} />) : null}
+          {!usesFormbricks && !wasStopped ? template.questions.map((question, index) => (
             <Field key={question.id} label={<span className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">{index + 1}</span><span>{question.questionText}</span></span>}>
               <textarea
                 className={`${fieldClass} min-h-14 resize-y border-slate-200 bg-slate-50/70 leading-7 focus:bg-white disabled:bg-surface disabled:text-muted`}
@@ -2058,12 +2078,12 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
             <button className={secondaryButton} type="button" onClick={onClose}>
               Close
             </button>
-            {canSubmit ? (
+            {canSubmit && !usesFormbricks ? (
               <button className={secondaryButton} type="button" onClick={() => void saveCurrentDraft()}>
                 Save draft
               </button>
             ) : null}
-            {canSubmit ? (
+            {canSubmit && !usesFormbricks ? (
               <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-5 font-semibold text-white shadow-lg shadow-blue-200 transition hover:from-blue-700 hover:to-indigo-700" type="submit">
                 <Check size={16} />
                 Submit feedback

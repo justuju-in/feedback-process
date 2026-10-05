@@ -14,6 +14,8 @@ import { writeFeedbackAuditEvent } from "./feedbackAuditService.js";
 import { FEEDBACK_CONTENT_POLICY_VIOLATION, validateRespectfulFeedbackText } from "./feedbackContentPolicy.js";
 import { writeFeedbackPolicyEvent } from "./feedbackPolicyAuditService.js";
 
+import { getFormbricksFeedback } from "./formbricksReadService.js";
+
 const requestSelect = `
   SELECT
     request.id,
@@ -29,6 +31,7 @@ const requestSelect = `
     receiver.email AS receiverEmail,
     request.template_id AS templateId,
     template.name AS templateName,
+    CASE WHEN EXISTS (SELECT 1 FROM formbricks_templates fb WHERE fb.template_id = request.template_id) THEN 'formbricks' ELSE 'native' END AS provider,
     request.message,
     request.purpose,
     request.visibility,
@@ -257,6 +260,10 @@ export async function createFeedbackRequest({
     }
   }
   await requireTemplate(pool, templateId, requesterId);
+  if (isDirectFeedback) {
+    const [[external]] = await pool.execute("SELECT template_id FROM formbricks_templates WHERE template_id = ?", [templateId]);
+    if (external) throw new ServiceError(400, "Use this custom form through Request feedback.");
+  }
 
   const [[duplicateRequest]] = await pool.execute(
     `SELECT id
@@ -602,6 +609,7 @@ export async function getFeedbackRequestById(requestId) {
   return {
     ...request,
     viewers,
+    formbricks: await getFormbricksFeedback(pool, requestId, request.templateId),
     questions,
     answers,
     draft: draft ? { ...draft, answers: typeof draft.answers === "string" ? JSON.parse(draft.answers) : draft.answers } : null,
