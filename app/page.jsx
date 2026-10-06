@@ -549,12 +549,12 @@ export default function Home() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-bold text-slate-900">{row.type}</p>
-                      <p className="mt-1 text-sm text-muted">{row.isDirect ? `Shared by ${row.giverName}` : `Requested by ${row.requesterName}`}</p>
+                      <p className="mt-1 text-sm text-muted">{row.isDirect ? (row.isAnonymous ? "Anonymous feedback shared" : `Direct feedback from ${row.giverName}`) : `Requested by ${row.requesterName}`}</p>
                     </div>
                     <span className={`${statusClass(row.status)} shrink-0`}>{row.status === "closed" ? "Done" : row.status}</span>
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-3 text-sm">
-                    <div><p className="text-xs font-bold uppercase tracking-wide text-muted">{row.isDirect ? "Sent to" : "Feedback giver"}</p><p className="mt-1 font-semibold text-slate-800">{row.isDirect ? row.receiverName : row.giverName}</p></div>
+                    <div><p className="text-xs font-bold uppercase tracking-wide text-muted">{row.isDirect ? "Feedback recipient" : "Selected feedback giver"}</p><p className="mt-1 font-semibold text-slate-800">{row.isDirect ? row.receiverName : row.giverName}</p></div>
                     <div><p className="text-xs font-bold uppercase tracking-wide text-muted">Due date</p><p className="mt-1 font-semibold text-slate-800">{row.dueDate}</p></div>
                     <div className="col-span-2"><p className="text-xs font-bold uppercase tracking-wide text-muted">Purpose</p><p className="mt-1 text-slate-700">{row.purpose || "Not selected"}</p></div>
                   </div>
@@ -570,8 +570,8 @@ export default function Home() {
               <table className="w-full min-w-[880px] text-left">
                 <thead className="bg-slate-50/90 text-xs font-bold uppercase tracking-[0.08em] text-slate-500">
                   <tr>
-                    <th className="px-6 py-4">Requester / Sender</th>
-                    <th className="px-4 py-4">Feedback Giver / Recipient</th>
+                    <th className="px-6 py-4">Initiated by</th>
+                    <th className="px-4 py-4">Feedback for</th>
                     <th className="px-4 py-4">Type</th>
                     <th className="px-4 py-4">Purpose</th>
                     <th className="px-4 py-4">Due Date</th>
@@ -587,14 +587,14 @@ export default function Home() {
                           <Avatar initials={row.requesterInitials} />
                           <div>
                             <p className="text-base font-semibold text-[#111827]">{row.isDirect ? row.giverName : row.requesterName}</p>
-                            <p className="mt-1 text-sm text-muted">{row.isDirect ? "Direct feedback sender" : row.requesterEmail}</p>
+                            <p className="mt-1 text-sm text-muted">{row.isDirect ? (row.isAnonymous ? "Anonymous sender" : "Direct feedback sender") : "Feedback requester"}</p>
                           </div>
                         </div>
                       </td>
                       <td className="px-4 py-5">
                         <div className="flex items-center gap-3">
                           <Avatar initials={row.isDirect ? row.receiverInitials : row.giverInitials} small />
-                          <span className="font-semibold">{row.isDirect ? row.receiverName : row.giverName}</span>
+                          <div><span className="font-semibold">{row.isDirect ? row.receiverName : row.giverName}</span><p className="mt-1 text-sm text-muted">{row.isDirect ? "Feedback recipient" : "Selected feedback giver"}</p></div>
                         </div>
                       </td>
                       <td className="px-4 py-5"><span className="font-semibold text-slate-800">{row.type}</span></td>
