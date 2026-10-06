@@ -570,8 +570,8 @@ export default function Home() {
               <table className="w-full min-w-[880px] text-left">
                 <thead className="bg-slate-50/90 text-xs font-bold uppercase tracking-[0.08em] text-slate-500">
                   <tr>
-                    <th className="px-6 py-4">Initiated by</th>
-                    <th className="px-4 py-4">Feedback for</th>
+                    <th className="px-6 py-4">From</th>
+                    <th className="px-4 py-4">To</th>
                     <th className="px-4 py-4">Type</th>
                     <th className="px-4 py-4">Purpose</th>
                     <th className="px-4 py-4">Due Date</th>
