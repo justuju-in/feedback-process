@@ -568,7 +568,7 @@ export default function Home() {
             </div>
             <div className="hidden overflow-x-auto xl:block">
               <table className="w-full min-w-[880px] text-left">
-                <thead className="bg-slate-50/90 text-xs font-bold uppercase tracking-[0.08em] text-slate-500">
+                <thead className="bg-slate-50/90 text-sm font-bold uppercase tracking-[0.08em] text-slate-600">
                   <tr>
                     <th className="px-6 py-4">From</th>
                     <th className="px-4 py-4">To</th>
