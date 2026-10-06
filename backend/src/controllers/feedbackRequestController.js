@@ -196,14 +196,14 @@ export async function getFeedbackRequestById(req, res) {
       [requestId],
     );
     const hasSafetyReport = Boolean(report);
-    // A dismissed report is retained only as an audit record. Once it is
-    // dismissed, SC reviewers must no longer be able to open the private
-    // feedback, answers, or participant discussion.
-    const isDismissedReport = report?.status === "dismissed";
-    const isAssignedSpecialReviewer = !isDismissedReport
+    // A final report decision is retained only as an audit record. Once it is
+    // resolved or dismissed, SC reviewers must no longer be able to open the
+    // private feedback, answers, or participant discussion.
+    const hasFinalReportDecision = ["resolved", "dismissed"].includes(report?.status);
+    const isAssignedSpecialReviewer = !hasFinalReportDecision
       && Boolean(report?.requiresDualReview)
       && [report.scReviewerId, report.internalReviewerId].some((id) => Number(id) === Number(req.auth.user.id));
-    const isSCReviewerForReport = role === "sc" && hasSafetyReport && !isDismissedReport
+    const isSCReviewerForReport = role === "sc" && hasSafetyReport && !hasFinalReportDecision
       && (!report.requiresDualReview || Number(report.scReviewerId) === Number(req.auth.user.id));
     // Identity disclosure is allowed only where the giver explicitly agreed
     // before submitting this anonymous feedback, and only on a deliberate SC

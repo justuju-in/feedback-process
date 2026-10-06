@@ -868,9 +868,10 @@ function SCReportReview({ reports, users, currentUserId, isSafetyReviewer, onAss
           const isSpecialReport = Boolean(report.requiresDualReview);
           const isAssignedScReviewer = Number(report.scReviewerId) === Number(currentUserId);
           const isAssignedInternalReviewer = Number(report.internalReviewerId) === Number(currentUserId);
-          // Dismissed reports remain visible for the audit trail, but their
+          // Finalized reports remain visible for the audit trail, but their
           // private feedback and discussion are no longer available to SC.
-          const canOpenFeedback = report.status !== "dismissed" && (!isSpecialReport ? isSafetyReviewer : isAssignedScReviewer || isAssignedInternalReviewer);
+          const hasFinalDecision = ["resolved", "dismissed"].includes(report.status);
+          const canOpenFeedback = !hasFinalDecision && (!isSpecialReport ? isSafetyReviewer : isAssignedScReviewer || isAssignedInternalReviewer);
           const needsDecision = ["open", "in_review"].includes(report.status);
           const statusClass = report.status === "open" ? "bg-red-100 text-red-700" : report.status === "needs_escalation" ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600";
           return <article className="grid gap-4 px-6 py-5 sm:grid-cols-[1fr_auto]" key={report.id}>
@@ -884,7 +885,7 @@ function SCReportReview({ reports, users, currentUserId, isSafetyReviewer, onAss
             <div className="flex flex-wrap content-start gap-2">
               {isSpecialReport && !report.scReviewerId && isSafetyReviewer && Number(report.receiverId) !== Number(currentUserId) ? <select className="field-control w-56" defaultValue="" onChange={(event) => event.target.value && onAssign(report.id, Number(event.target.value))}><option value="">Select independent reviewer</option>{users.filter((user) => user.isActive && user.role !== "sc" && user.role !== "external" && ![report.giverId, report.receiverId].includes(user.id)).map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select> : null}
               {canOpenFeedback ? <button className={secondaryButton} type="button" onClick={() => onOpenRequest(report.requestId)}>View feedback</button> : null}
-              {report.status === "dismissed" ? <span className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-500">Feedback access removed</span> : null}
+              {hasFinalDecision ? <span className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-500">Feedback access removed</span> : null}
               {!isSpecialReport && isSafetyReviewer && needsDecision ? <><button className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700" type="button" onClick={() => onReview(report.id, "resolved")}>Resolve</button><button className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50" type="button" onClick={() => onReview(report.id, "dismissed")}>Dismiss</button></> : null}
               {isSpecialReport && isAssignedScReviewer && needsDecision && !report.proposedOutcome ? <><button className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700" type="button" onClick={() => onReview(report.id, "resolved")}>Propose resolve</button><button className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50" type="button" onClick={() => onReview(report.id, "dismissed")}>Propose dismiss</button></> : null}
               {isSpecialReport && isAssignedInternalReviewer && needsDecision && report.proposedOutcome ? <><button className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700" type="button" onClick={() => onReview(report.id, "approved")}>Approve {report.proposedOutcome}</button><button className="rounded-lg border border-amber-300 px-3 py-2 text-sm font-semibold text-amber-800 transition hover:bg-amber-50" type="button" onClick={() => onReview(report.id, "disagreed")}>Disagree</button></> : null}
