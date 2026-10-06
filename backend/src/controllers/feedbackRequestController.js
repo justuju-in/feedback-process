@@ -192,7 +192,7 @@ export async function getFeedbackRequestById(req, res) {
     // to open a reported record unless they are already a normal participant.
     // SC reviewers can open it only when there is an associated report.
     const [[report]] = await getDatabasePool().execute(
-      "SELECT id, requires_dual_review AS requiresDualReview, sc_reviewer_id AS scReviewerId, internal_reviewer_id AS internalReviewerId FROM feedback_reports WHERE request_id = ? LIMIT 1",
+      "SELECT id, reporter_id AS reporterId, status, requires_dual_review AS requiresDualReview, sc_reviewer_id AS scReviewerId, internal_reviewer_id AS internalReviewerId FROM feedback_reports WHERE request_id = ? LIMIT 1",
       [requestId],
     );
     const hasSafetyReport = Boolean(report);
@@ -226,6 +226,13 @@ export async function getFeedbackRequestById(req, res) {
     const responseRequest = redactFeedbackRequestForViewer(feedbackRequest, req.auth.user.id, {
       revealAnonymousGiver: canRevealAnonymousGiverIdentity,
     });
+    // A receiver may report an anonymous feedback item only once. Return only
+    // their own report state here (never report details) so the client can
+    // replace the action with a clear, non-clickable status badge.
+    if (Number(report?.reporterId) === Number(req.auth.user.id)) {
+      responseRequest.hasReportedFeedback = true;
+      responseRequest.feedbackReportStatus = report.status;
+    }
     if (canRevealAnonymousGiverIdentity) {
       responseRequest.scIdentityAccessGranted = true;
     }

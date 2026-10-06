@@ -368,6 +368,8 @@ export default function Home() {
   async function reportFeedback(requestId, payload) {
     try {
       await api(`/feedback-requests/${requestId}/reports`, { method: "POST", body: JSON.stringify(payload) });
+      await openRequest(requestId);
+      await loadRequests(currentUserId);
       setError("");
       return { ok: true };
     } catch (reportError) {
@@ -1925,6 +1927,12 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onFormbricksC
   const canCreateFollowUp = (isRequester || isReceiver) && ["acknowledged", "follow_up_needed"].includes(request.status);
   const feedbackWasShared = ["submitted", "acknowledged", "follow_up_needed", "closed"].includes(request.status);
   const canReportFeedback = feedbackWasShared && isReceiver && request.isAnonymous;
+  const hasReportedFeedback = Boolean(request.hasReportedFeedback);
+  const reportStatusLabel = request.feedbackReportStatus === "resolved"
+    ? "Reported to SC Team · Resolved"
+    : request.feedbackReportStatus === "dismissed"
+      ? "Reported to SC Team · Reviewed"
+      : "Reported to SC Team · Under review";
   const isSCIdentityReview = Boolean(request.scIdentityAccessGranted);
   const wasStopped = ["cancelled", "declined"].includes(request.status);
   const footerMessage = request.status === "cancelled"
@@ -1995,7 +2003,8 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onFormbricksC
           </div>
           <div className="flex shrink-0 flex-wrap justify-end gap-2">
             {canModerate ? <button className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50" type="button" onClick={() => setIsModerationOpen(true)}>Admin record controls</button> : null}
-            {canReportFeedback ? <button className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50" type="button" onClick={() => setIsReportOpen(true)}>Report feedback</button> : null}
+            {canReportFeedback && hasReportedFeedback ? <span className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">{reportStatusLabel}</span> : null}
+            {canReportFeedback && !hasReportedFeedback ? <button className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50" type="button" onClick={() => setIsReportOpen(true)}>Report feedback</button> : null}
           </div>
         </div>
 
@@ -2196,7 +2205,7 @@ function ReportFeedbackModal({ request, onClose, onReport }) {
     setIsSaving(true);
     const result = await onReport(request.id, { reason, details });
     setIsSaving(false);
-    if (result.ok) setNotice("Your report was sent privately to the SC Team for review.");
+    if (result.ok) onClose();
     else setNotice(result.message || "Your report could not be sent.");
   }
 
