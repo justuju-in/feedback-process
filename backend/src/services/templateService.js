@@ -317,14 +317,36 @@ export async function setTemplateActive({ templateId, isActive, actorId }) {
 export async function getTemplateQuestions({ templateId, actorId }) {
   const pool = getDatabasePool();
   const [[template]] = await pool.execute(
-    `SELECT id, name
-     FROM feedback_templates
-     WHERE id = ? AND (created_by IS NULL OR created_by = ?)`,
+    `SELECT template.id, template.name, formbricks.snapshot AS formbricksSnapshot
+     FROM feedback_templates AS template
+     LEFT JOIN formbricks_templates AS formbricks ON formbricks.template_id = template.id
+     WHERE template.id = ? AND (template.created_by IS NULL OR template.created_by = ?)`,
     [templateId, actorId],
   );
 
   if (!template) {
     throw new ServiceError(404, "Feedback template not found");
+  }
+
+  // Formbricks forms keep their question schema as a snapshot rather than in
+  // template_questions. Expose a read-only, plain-text version for the
+  // request screen preview; the feedback itself is still rendered by
+  // Formbricks when the giver opens the request.
+  if (template.formbricksSnapshot) {
+    const snapshot = typeof template.formbricksSnapshot === "string"
+      ? JSON.parse(template.formbricksSnapshot)
+      : template.formbricksSnapshot;
+    const questions = (snapshot?.questions || []).map((question, index) => ({
+      id: question.id || `formbricks-${index + 1}`,
+      questionText: question.headline?.default || question.headline || `Question ${index + 1}`,
+      questionOrder: index + 1,
+    }));
+
+    return {
+      templateId: template.id,
+      templateName: template.name,
+      questions,
+    };
   }
 
   const [questions] = await pool.execute(
