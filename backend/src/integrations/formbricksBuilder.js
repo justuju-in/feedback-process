@@ -22,7 +22,6 @@ export function buildFormbricksSurvey(input, workspaceId) {
       return {...base,type:['single','dropdown'].includes(q.type)?'multipleChoiceSingle':'multipleChoiceMulti',displayType:['dropdown','multiDropdown'].includes(q.type)?'dropdown':'list',choices:options.map(v=>({id:id(),label:label(v)}))};
     }
     if(['stars','smileys','rating','csat','ces'].includes(q.type)) return {...base,type:['csat','ces'].includes(q.type)?q.type:'rating',scale:q.type==='stars'?'star':['smileys','csat'].includes(q.type)?'smiley':'number',range:q.type==='ces'?7:5};
-    if(q.type==='nps')return {...base,type:'nps'};
     if(q.type==='consent')return {...base,type:'consent',label:label(plain(q.consentLabel,250,`Question ${index+1} checkbox label`))};
     fail(`Question ${index+1} has an unsupported type`);
   });

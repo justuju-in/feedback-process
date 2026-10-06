@@ -5,14 +5,14 @@ import { useState } from "react";
 const types = [
   ["text", "Short text"], ["longText", "Long text"], ["single", "Single choice"], ["multiple", "Multiple choice"],
   ["dropdown", "Dropdown"], ["multiDropdown", "Multiple-select dropdown"], ["stars", "Star rating"],
-  ["smileys", "Smiley rating"], ["rating", "Number rating"], ["nps", "NPS (0–10)"],
+  ["smileys", "Smiley rating"], ["rating", "Number rating"],
   ["csat", "Satisfaction (CSAT)"], ["ces", "Effort (CES)"], ["email", "Email"], ["number", "Number"], ["consent", "Consent checkbox"],
 ];
 
 const typeHelp = {
   text: "A short written answer.", longText: "A detailed written answer.", single: "Choose one option.", multiple: "Choose one or more options.",
   dropdown: "Choose one option from a compact list.", multiDropdown: "Choose multiple options from a compact list.", stars: "Rate from 1 to 5 stars.",
-  smileys: "Rate from very unhappy to very happy.", rating: "Rate from 1 to 5.", nps: "Score from 0 to 10.",
+  smileys: "Rate from very unhappy to very happy.", rating: "Rate from 1 to 5.",
   csat: "A quick satisfaction score.", ces: "Measure how easy or difficult something was.", email: "Accepts a valid email address.",
   number: "Accepts numbers only.", consent: "Ask the feedback giver to confirm an agreement.",
 };
