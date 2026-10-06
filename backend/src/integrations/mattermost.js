@@ -141,11 +141,9 @@ export async function sendFeedbackReportNotification(report, scRecipientEmails =
     other: "Other concern",
   };
   const message =
-    `:warning: **Feedback safety report received**\n` +
-      `Report #${report.id} · Feedback request #${report.requestId}\n` +
-      `Reason: **${reasonLabels[report.reason] || report.reason}**\n` +
-      "Please review this privately in Feedback Process → SC Team Review. " +
-      "This alert does not include feedback answers.";
+    `:warning: **New feedback report #${report.id}**\n` +
+      `Reason: ${reasonLabels[report.reason] || report.reason}\n` +
+      "Review in Feedback Process → SC Team Review";
 
   // Reports can be routed to the dedicated private SC channel. Normal
   // feedback notifications still use the one-to-one DM flow below.
