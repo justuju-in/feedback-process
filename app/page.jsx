@@ -587,7 +587,7 @@ export default function Home() {
                         ) : null}
                         {row.status === "acknowledged" && row.giverId === currentUserId ? (
                           <p className="mt-1 text-xs font-medium text-violet-700">
-                            {row.requesterName} acknowledged this feedback
+                            {row.receiverName} acknowledged this feedback
                           </p>
                         ) : null}
                       </td>
@@ -2242,7 +2242,7 @@ function FeedbackHistory({ request }) {
     history.push({
       id: "acknowledged",
       title: "Feedback acknowledged",
-      description: `${request.requesterName} acknowledged the feedback`,
+      description: `${request.receiverName} acknowledged the feedback`,
       time: request.acknowledgedAt,
     });
   }
