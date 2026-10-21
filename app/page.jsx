@@ -89,7 +89,8 @@ export default function Home() {
   const pendingForMe = requests.filter(
     (request) => request.giverId === currentUserId && ["requested", "in_progress", "overdue"].includes(request.status),
   );
-  const sentByMe = requests.filter((request) => request.requesterId === currentUserId);
+  const sentByMe = requests.filter((request) => request.requesterId === currentUserId && !request.isDirect);
+  const feedbackSharedByMe = requests.filter((request) => request.giverId === currentUserId && request.isDirect);
   const receivedFeedback = requests.filter((request) => request.receiverId === currentUserId && request.status === "submitted");
   // Requests returned here already belong to the current user or were shared with them.
   const tableRows = requests.map(toTableRow);
@@ -465,7 +466,7 @@ export default function Home() {
           </div>
 
           {activePage === "dashboard" ? <>
-          <section className="grid gap-5 xl:grid-cols-3">
+          <section className="grid gap-5 xl:grid-cols-4">
             <StatCard
               icon={<Inbox size={28} />}
               tone="blue"
@@ -479,6 +480,13 @@ export default function Home() {
               label="Requests Sent"
               value={sentByMe.length}
               helper="Feedback requests created by me"
+            />
+            <StatCard
+              icon={<Send size={28} />}
+              tone="blue"
+              label="Feedback Shared"
+              value={feedbackSharedByMe.length}
+              helper="Direct feedback shared by me"
             />
             <StatCard
               icon={<Check size={28} />}
@@ -2225,8 +2233,10 @@ function FeedbackConversation({ request, currentUserId, onDiscussion }) {
 function FeedbackHistory({ request }) {
   const history = [{
     id: "created",
-    title: "Request created",
-    description: `${request.requesterName} asked ${request.giverName} for feedback`,
+    title: request.isDirect ? "Feedback shared" : "Request created",
+    description: request.isDirect
+      ? `${request.giverName} shared feedback with ${request.receiverName}`
+      : `${request.requesterName} asked ${request.giverName} for feedback`,
     time: request.createdAt,
   }];
   const submittedAt = request.answers?.[0]?.createdAt;
@@ -2507,9 +2517,12 @@ function formatDueDate(dueDate) {
 }
 
 function formatHistoryTime(value) {
-  const date = new Date(value);
+  const normalizedValue = typeof value === "string" && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(value)
+    ? `${value.replace(" ", "T")}Z`
+    : value;
+  const date = new Date(normalizedValue);
   if (Number.isNaN(date.getTime())) return "Time unavailable";
   return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+    day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata",
   }).format(date);
 }
