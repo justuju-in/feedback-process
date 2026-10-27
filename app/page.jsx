@@ -66,6 +66,7 @@ export default function Home() {
   const [activePage, setActivePage] = useState("dashboard");
   const [requestSearch, setRequestSearch] = useState("");
   const [requestStatus, setRequestStatus] = useState("all");
+  const [requestScope, setRequestScope] = useState("all");
   const [error, setError] = useState("");
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -84,7 +85,13 @@ export default function Home() {
   const historyRows = tableRows.filter((request) => ["closed", "cancelled", "declined"].includes(request.status));
   const activeRequestRows = tableRows.filter((request) => !["closed", "cancelled", "declined"].includes(request.status));
   const rowsForActivePage = activePage === "history" ? historyRows : activeRequestRows;
-  const visibleRows = rowsForActivePage.filter((request) => {
+  const scopedRows = rowsForActivePage.filter((request) => {
+    if (requestScope === "waiting") return request.giverId === currentUserId && ["requested", "in_progress", "overdue"].includes(request.status);
+    if (requestScope === "sent") return request.requesterId === currentUserId;
+    if (requestScope === "received") return request.receiverId === currentUserId && request.status === "submitted";
+    return true;
+  });
+  const visibleRows = scopedRows.filter((request) => {
     const searchableText = [request.requesterName, request.giverName, request.type, request.purpose, request.status].join(" ").toLowerCase();
     return searchableText.includes(requestSearch.trim().toLowerCase()) && (requestStatus === "all" || request.status === requestStatus);
   });
@@ -92,6 +99,13 @@ export default function Home() {
     ? [["closed", "Done"], ["cancelled", "Cancelled"], ["declined", "Declined"]]
     : [["requested", "Requested"], ["in_progress", "In progress"], ["overdue", "Overdue"], ["submitted", "Submitted"], ["acknowledged", "Acknowledged"]];
   const upcomingRequests = tableRows.filter((request) => ["requested", "in_progress", "overdue"].includes(request.status) && request.dueDate !== "Not selected").slice(0, 3);
+
+  function openRequestScope(scope) {
+    setActivePage("requests");
+    setRequestScope(scope);
+    setRequestSearch("");
+    setRequestStatus("all");
+  }
 
   useEffect(() => {
     async function loadReferenceData() {
@@ -433,10 +447,10 @@ export default function Home() {
     <div className="flex min-h-screen flex-col bg-gradient-to-br from-[#f6f8ff] via-[#fbfcfe] to-[#eef7ff] text-ink">
       <AppHeader currentUser={currentUser} onLogout={handleLogout} isLoggingOut={isLoggingOut} notifications={notifications} onNotificationRead={markNotificationRead} onReadAll={markAllNotificationsRead} onOpenRequest={(requestId) => void openRequest(requestId)} />
 
-      <MobileNavigation activePage={activePage} showSCReview={isSCReviewer} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
+      <MobileNavigation activePage={activePage} showSCReview={isSCReviewer} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); setRequestScope("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
 
       <div className={`grid flex-1 ${isCreateOpen ? "xl:grid-cols-[260px_1fr_420px]" : "xl:grid-cols-[260px_1fr]"}`}>
-        <Sidebar activePage={activePage} showSCReview={isSCReviewer} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
+        <Sidebar activePage={activePage} showSCReview={isSCReviewer} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); setRequestScope("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
 
         <main className="border-x border-line/70 bg-white/55 px-5 py-7 backdrop-blur-sm sm:px-7 sm:py-8 lg:px-9 xl:px-10">
           <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -458,6 +472,7 @@ export default function Home() {
               label="Waiting For Me"
               value={pendingForMe.length}
               helper="Requests where I need to give feedback"
+              onClick={() => openRequestScope("waiting")}
             />
             <StatCard
               icon={<Send size={28} />}
@@ -465,6 +480,7 @@ export default function Home() {
               label="Requests Sent"
               value={sentByMe.length}
               helper="Feedback requests created by me"
+              onClick={() => openRequestScope("sent")}
             />
             <StatCard
               icon={<Check size={28} />}
@@ -472,11 +488,12 @@ export default function Home() {
               label="Received feedback"
               value={receivedFeedback.length}
               helper="Feedback responses ready to review"
+              onClick={() => openRequestScope("received")}
             />
           </section>
 
           <section className="mt-7 grid gap-5 xl:grid-cols-3">
-            <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><p className="text-sm font-bold uppercase tracking-wide text-blue-600">Quick actions</p><h2 className="mt-1 text-xl font-bold text-slate-950">What would you like to do?</h2><p className="mt-2 text-sm text-muted">Start a new request or check feedback waiting for you.</p><div className="mt-5 flex flex-wrap gap-3"><button className={primaryButton} type="button" onClick={() => { setReplacementRequest(null); setIsCreateOpen(true); }}><Plus size={17} /> Request feedback</button><button className={secondaryButton} type="button" onClick={() => setActivePage("requests")}>View requests ({pendingForMe.length})</button></div></article>
+            <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><p className="text-sm font-bold uppercase tracking-wide text-blue-600">Quick actions</p><h2 className="mt-1 text-xl font-bold text-slate-950">What would you like to do?</h2><p className="mt-2 text-sm text-muted">Start a new request or check feedback waiting for you.</p><div className="mt-5 flex flex-wrap gap-3"><button className={primaryButton} type="button" onClick={() => { setReplacementRequest(null); setIsCreateOpen(true); }}><Plus size={17} /> Request feedback</button><button className={secondaryButton} type="button" onClick={() => openRequestScope("waiting")}>View requests ({pendingForMe.length})</button></div></article>
             <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><p className="text-sm font-bold uppercase tracking-wide text-amber-600">Upcoming due dates</p><h2 className="mt-1 text-xl font-bold text-slate-950">Keep on track</h2><div className="mt-4 grid gap-2">{upcomingRequests.length ? upcomingRequests.map((request) => <div key={request.id} className="flex justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm"><span className="font-semibold">{request.type}</span><span className="font-bold text-amber-700">{request.dueDate}</span></div>) : <p className="text-sm text-muted">No upcoming due dates.</p>}</div></article>
             <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><p className="text-sm font-bold uppercase tracking-wide text-violet-600">Recent activity</p><h2 className="mt-1 text-xl font-bold text-slate-950">Latest updates</h2><div className="mt-4 grid gap-2">{tableRows.slice(0, 3).map((request) => <button key={request.id} type="button" onClick={() => void openRequest(request.id)} className="rounded-lg bg-slate-50 px-3 py-2 text-left text-sm transition hover:bg-violet-50"><p className="font-semibold text-slate-800">{request.type}</p><p className="mt-1 text-muted">{request.status} · {request.giverName}</p></button>)}</div></article>
           </section>
@@ -495,7 +512,13 @@ export default function Home() {
                   <option value="all">All statuses</option>
                   {statusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </select>
-                {requestSearch || requestStatus !== "all" ? <button className="text-sm font-semibold text-blue-700 hover:text-blue-900" type="button" onClick={() => { setRequestSearch(""); setRequestStatus("all"); }}>Clear filters</button> : null}
+                {activePage === "requests" ? <select className="field-control w-auto min-w-40" value={requestScope} onChange={(event) => setRequestScope(event.target.value)}>
+                  <option value="all">All requests</option>
+                  <option value="waiting">Waiting for me</option>
+                  <option value="sent">Requests sent</option>
+                  <option value="received">Received feedback</option>
+                </select> : null}
+                {requestSearch || requestStatus !== "all" || requestScope !== "all" ? <button className="text-sm font-semibold text-blue-700 hover:text-blue-900" type="button" onClick={() => { setRequestSearch(""); setRequestStatus("all"); setRequestScope("all"); }}>Clear filters</button> : null}
               </div>
               <div className="flex items-center gap-3">
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">{activePage === "history" ? `${visibleRows.length} history records` : `${visibleRows.length} total requests`}</span>
@@ -522,7 +545,7 @@ export default function Home() {
                     {activePage === "history" ? <><button className="rounded-lg border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-700" type="button" onClick={() => void openRequest(row.id)}>View</button>{row.status === "declined" && row.requesterId === currentUserId && row.alternateGiverId ? <button className="rounded-lg border border-violet-200 px-3 py-2 text-sm font-semibold text-violet-700" type="button" onClick={() => { setReplacementRequest(row); setIsCreateOpen(true); }}>Use suggested reviewer</button> : null}</> : <RequestActions row={row} currentUserId={currentUserId} onView={() => void openRequest(row.id)} onAction={(action) => handleRequestAction(row, action)} onEditDueDate={() => setDueDateRequest(row)} />}
                   </div>
                 </article>
-              )) : <p className="rounded-xl bg-slate-50 px-4 py-10 text-center text-sm text-muted">{requestSearch || requestStatus !== "all" ? "No requests match these filters." : activePage === "history" ? "No feedback history yet." : "No feedback requests yet. Create a request from the right panel."}</p>}
+              )) : <p className="rounded-xl bg-slate-50 px-4 py-10 text-center text-sm text-muted">{requestSearch || requestStatus !== "all" || requestScope !== "all" ? "No requests match these filters." : activePage === "history" ? "No feedback history yet." : "No feedback requests yet. Create a request from the right panel."}</p>}
             </div>
             <div className="hidden overflow-x-auto xl:block">
               <table className="w-full min-w-[820px] text-left">
@@ -586,7 +609,7 @@ export default function Home() {
                   )) : (
                     <tr>
                       <td className="px-6 py-12 text-center text-base text-muted" colSpan={7}>
-                        {requestSearch || requestStatus !== "all" ? "No requests match these filters." : activePage === "history" ? "No feedback history yet." : "No feedback requests yet. Create a request from the right panel."}
+                        {requestSearch || requestStatus !== "all" || requestScope !== "all" ? "No requests match these filters." : activePage === "history" ? "No feedback history yet." : "No feedback requests yet. Create a request from the right panel."}
                       </td>
                     </tr>
                   )}
@@ -851,15 +874,17 @@ function SidebarItem({ active = false, icon, label, onClick }) {
   );
 }
 
-function StatCard({ icon, tone, label, value, helper }) {
+function StatCard({ icon, tone, label, value, helper, onClick }) {
   const toneClass = {
     blue: "bg-blue-50 text-blue-700",
     green: "bg-green-50 text-green-700",
     amber: "bg-orange-50 text-orange-700",
   }[tone];
 
+  const Component = onClick ? "button" : "article";
+
   return (
-    <article className="rounded-2xl border border-line/80 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.06)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(15,23,42,0.09)] sm:p-6">
+    <Component className={`rounded-2xl border border-line/80 bg-white p-5 text-left shadow-[0_10px_30px_rgba(15,23,42,0.06)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(15,23,42,0.09)] sm:p-6 ${onClick ? "cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" : ""}`} type={onClick ? "button" : undefined} onClick={onClick}>
       <div className="flex items-center gap-4 sm:gap-5">
         <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${toneClass} sm:h-16 sm:w-16`}>
           {icon}
@@ -872,7 +897,7 @@ function StatCard({ icon, tone, label, value, helper }) {
         </div>
       </div>
       <p className="mt-4 text-sm leading-6 text-muted sm:text-base">{helper}</p>
-    </article>
+    </Component>
   );
 }
 

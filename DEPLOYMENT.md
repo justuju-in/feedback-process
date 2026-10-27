@@ -1,13 +1,12 @@
-# Shared deployment setup
+# Environment-safe deployment setup
 
-This project uses one shared online backend so users do not need to configure
-MySQL or email on their own computers.
+Production and staging must use separate backend services and separate MySQL
+databases. Never point the staging frontend at the production backend.
 
-## 1. Deploy the backend and MySQL on Railway
+## 1. Deploy separate backends and databases on Railway
 
-1. Create a Railway project from this GitHub repository and select the
-   `feature/password-reset-api` branch while it is being tested.
-2. Add a MySQL service to the same Railway project.
+1. Create one Railway project for production and another for staging.
+2. Add a separate MySQL service to each Railway project.
 3. For the backend service, set **Root Directory** to `/backend` and
    **Config File Path** to `/backend/railway.toml`.
 4. Add these backend service variables in Railway. Reference the values from
@@ -28,30 +27,40 @@ SMTP_PASS=<Google App Password>
 EMAIL_FROM=<sender email>
 ```
 
-5. Import `backend/scripts/schema.sql` into the Railway MySQL database once.
-6. Generate a public Railway domain for the backend and verify:
+5. Import `backend/scripts/schema.sql` into each Railway MySQL database once.
+6. Generate a public Railway domain for each backend and verify:
    `https://<backend-domain>/health`.
 
 Never add real passwords, tokens, or SMTP credentials to Git.
 
 ## 2. Deploy the frontend on Vercel
 
-1. Import the same GitHub repository into Vercel.
+1. Import the same GitHub repository into Vercel for production and staging.
 2. Keep the repository root as the Vercel project Root Directory.
-3. Add this Vercel environment variable for Production and Preview:
+3. Configure the production frontend with:
 
 ```env
-API_PROXY_TARGET=https://<Railway backend domain>
+APP_ENV=production
+API_PROXY_TARGET=https://<production Railway backend domain>
 ```
 
-4. Deploy the frontend.
-5. Copy its final HTTPS domain into the Railway backend variable
-   `FRONTEND_ORIGIN`, then redeploy the backend.
+4. Configure the staging frontend with:
+
+```env
+APP_ENV=staging
+API_PROXY_TARGET_STAGING=https://<staging Railway backend domain>
+```
+
+   Staging fails to build if `API_PROXY_TARGET_STAGING` is missing, preventing
+   it from silently sending test data to production.
+5. Deploy both frontends.
+6. Set each backend's `FRONTEND_ORIGIN` to its matching frontend domain, then
+   redeploy both backends.
 
 The browser continues to call `/api`. The Next.js rewrite in
-`next.config.mjs` forwards those requests to the shared Railway backend.
+`next.config.mjs` forwards each environment to its own Railway backend.
 
-## 3. Test the shared flow
+## 3. Test each isolated environment
 
 1. Register a user on the Vercel URL.
 2. Open **Forgot password** and submit that registered email.
