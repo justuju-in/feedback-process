@@ -1,7 +1,7 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Feedback Process Prototype",
+  title: "Feedback",
   description: "Next.js prototype for feedback request workflow",
   icons: {
     icon: [{ url: "/justuju-favicon.png", type: "image/png", sizes: "64x64" }],
