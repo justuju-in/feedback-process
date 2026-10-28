@@ -74,6 +74,8 @@ export default function Home() {
   const [activePage, setActivePage] = useState("dashboard");
   const [requestSearch, setRequestSearch] = useState("");
   const [requestStatus, setRequestStatus] = useState("all");
+  const [requestView, setRequestView] = useState("all");
+  const [requestPage, setRequestPage] = useState(1);
   const [error, setError] = useState("");
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -83,6 +85,9 @@ export default function Home() {
   const currentUser = users.find((user) => user.id === currentUserId);
   const currentUserRole = String(currentUser?.role || "").toLowerCase();
   const isSafetyReviewer = currentUserRole === "sc";
+  // An independent reviewer is not an SC member, but must still be able to
+  // see the SC review page for the one confidential case assigned to them.
+  const canReviewReports = isSafetyReviewer || reports.length > 0;
   const canViewAnalytics = currentUserRole === "admin";
   const canManagePeople = currentUserRole === "admin";
   const selectedRequestId = selectedRequest?.id;
@@ -96,15 +101,57 @@ export default function Home() {
   const tableRows = requests.map(toTableRow);
   const historyRows = tableRows.filter((request) => ["closed", "cancelled", "declined"].includes(request.status));
   const activeRequestRows = tableRows.filter((request) => !["closed", "cancelled", "declined"].includes(request.status));
-  const rowsForActivePage = activePage === "history" ? historyRows : activeRequestRows;
+  const requestViewLabels = {
+    all: "All requests",
+    waiting: "Waiting for me",
+    sent: "Requests sent",
+    shared: "Feedback shared",
+    received: "Received feedback",
+  };
+  const matchesRequestView = (request) => {
+    if (requestView === "waiting") return request.giverId === currentUserId && ["requested", "in_progress", "overdue"].includes(request.status);
+    if (requestView === "sent") return request.requesterId === currentUserId && !request.isDirect;
+    if (requestView === "shared") return request.giverId === currentUserId && request.isDirect;
+    if (requestView === "received") return request.receiverId === currentUserId && request.status === "submitted";
+    return true;
+  };
+  const rowsForActivePage = activePage === "history"
+    ? historyRows
+    : requestView === "all" ? activeRequestRows : tableRows;
   const visibleRows = rowsForActivePage.filter((request) => {
     const searchableText = [request.requesterName, request.giverName, request.type, request.purpose, request.status].join(" ").toLowerCase();
-    return searchableText.includes(requestSearch.trim().toLowerCase()) && (requestStatus === "all" || request.status === requestStatus);
+    return matchesRequestView(request) && searchableText.includes(requestSearch.trim().toLowerCase()) && (requestStatus === "all" || request.status === requestStatus);
   });
+  const requestsPerPage = 5;
+  const requestPageCount = Math.max(1, Math.ceil(visibleRows.length / requestsPerPage));
+  const currentRequestPage = Math.min(requestPage, requestPageCount);
+  const paginatedRows = visibleRows.slice(
+    (currentRequestPage - 1) * requestsPerPage,
+    currentRequestPage * requestsPerPage,
+  );
+  const requestRangeStart = visibleRows.length ? (currentRequestPage - 1) * requestsPerPage + 1 : 0;
+  const requestRangeEnd = Math.min(currentRequestPage * requestsPerPage, visibleRows.length);
   const statusOptions = activePage === "history"
     ? [["closed", "Done"], ["cancelled", "Cancelled"], ["declined", "Declined"]]
     : [["requested", "Requested"], ["in_progress", "In progress"], ["overdue", "Overdue"], ["submitted", "Submitted"], ["acknowledged", "Acknowledged"]];
   const upcomingRequests = tableRows.filter((request) => ["requested", "in_progress", "overdue"].includes(request.status) && request.dueDate !== "Not selected").slice(0, 3);
+
+  function openRequestView(view) {
+    setActivePage("requests");
+    setIsCreateOpen(false);
+    setIsGiveFeedbackOpen(false);
+    setRequestView(view);
+    setRequestSearch("");
+    setRequestStatus("all");
+    setRequestPage(1);
+  }
+
+  function resetRequestFilters() {
+    setRequestView("all");
+    setRequestSearch("");
+    setRequestStatus("all");
+    setRequestPage(1);
+  }
 
   useEffect(() => {
     async function loadReferenceData() {
@@ -352,6 +399,8 @@ export default function Home() {
   async function reportFeedback(requestId, payload) {
     try {
       await api(`/feedback-requests/${requestId}/reports`, { method: "POST", body: JSON.stringify(payload) });
+      await openRequest(requestId);
+      await loadRequests(currentUserId);
       setError("");
       return { ok: true };
     } catch (reportError) {
@@ -368,6 +417,8 @@ export default function Home() {
     } catch (reportError) { setError(reportError.message); }
   }
 
+  useEffect(() => { if (currentUserId) void loadReports(); }, [currentUserId]);
+
   async function loadAnalytics() {
     try {
       const analyticsData = await api("/feedback-analytics");
@@ -379,6 +430,13 @@ export default function Home() {
   async function reviewReport(reportId, status) {
     try {
       await api(`/feedback-reports/${reportId}`, { method: "PATCH", body: JSON.stringify({ status }) });
+      await loadReports();
+    } catch (reportError) { setError(reportError.message); }
+  }
+
+  async function assignReportReviewers(reportId, internalReviewerId) {
+    try {
+      await api(`/feedback-reports/${reportId}/assign-reviewers`, { method: "POST", body: JSON.stringify({ internalReviewerId }) });
       await loadReports();
     } catch (reportError) { setError(reportError.message); }
   }
@@ -448,10 +506,10 @@ export default function Home() {
     <div className="flex min-h-screen flex-col bg-gradient-to-br from-[#f6f8ff] via-[#fbfcfe] to-[#eef7ff] text-ink">
       <AppHeader currentUser={currentUser} onLogout={handleLogout} isLoggingOut={isLoggingOut} notifications={notifications} onNotificationRead={markNotificationRead} onReadAll={markAllNotificationsRead} onOpenRequest={(requestId) => void openRequest(requestId)} />
 
-      <MobileNavigation activePage={activePage} showSCReview={isSafetyReviewer} showAnalytics={canViewAnalytics} showPeople={canManagePeople} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
+      <MobileNavigation activePage={activePage} showSCReview={canReviewReports} showAnalytics={canViewAnalytics} showPeople={canManagePeople} onSelect={(page) => { setActivePage(page); resetRequestFilters(); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
 
       <div className={`grid min-w-0 flex-1 ${(isCreateOpen || isGiveFeedbackOpen) ? "xl:grid-cols-[260px_minmax(0,1fr)_minmax(380px,460px)]" : "xl:grid-cols-[260px_minmax(0,1fr)]"}`}>
-        <Sidebar activePage={activePage} showSCReview={isSafetyReviewer} showAnalytics={canViewAnalytics} showPeople={canManagePeople} onSelect={(page) => { setActivePage(page); setRequestSearch(""); setRequestStatus("all"); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
+        <Sidebar activePage={activePage} showSCReview={canReviewReports} showAnalytics={canViewAnalytics} showPeople={canManagePeople} onSelect={(page) => { setActivePage(page); resetRequestFilters(); if (page === "reports") void loadReports(); if (page === "analytics") void loadAnalytics(); }} />
 
         <main className="min-w-0 border-x border-line/70 bg-white/55 px-5 py-7 backdrop-blur-sm sm:px-7 sm:py-8 lg:px-9 xl:px-10">
           <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -473,6 +531,7 @@ export default function Home() {
               label="Waiting For Me"
               value={pendingForMe.length}
               helper="Requests where I need to give feedback"
+              onClick={() => openRequestView("waiting")}
             />
             <StatCard
               icon={<Send size={28} />}
@@ -480,6 +539,7 @@ export default function Home() {
               label="Requests Sent"
               value={sentByMe.length}
               helper="Feedback requests created by me"
+              onClick={() => openRequestView("sent")}
             />
             <StatCard
               icon={<Send size={28} />}
@@ -487,42 +547,45 @@ export default function Home() {
               label="Feedback Shared"
               value={feedbackSharedByMe.length}
               helper="Direct feedback shared by me"
+              onClick={() => openRequestView("shared")}
             />
             <StatCard
               icon={<Check size={28} />}
               tone="amber"
               label="Received feedback"
               value={receivedFeedback.length}
+              onClick={() => openRequestView("received")}
             />
           </section>
 
           <section className="mt-7 grid gap-5 xl:grid-cols-3">
-            <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><p className="text-sm font-bold uppercase tracking-wide text-blue-600">Quick actions</p><h2 className="mt-1 text-xl font-bold text-slate-950">What would you like to do?</h2><p className="mt-2 text-sm text-muted">Request feedback, share feedback directly, or check feedback waiting for you.</p><div className="mt-5 flex flex-wrap gap-3"><button className={primaryButton} type="button" onClick={() => { setError(""); setReplacementRequest(null); setIsGiveFeedbackOpen(false); setIsCreateOpen(true); }}><Plus size={17} /> Request feedback</button><button className={primaryButton} type="button" onClick={() => { setError(""); setIsCreateOpen(false); setIsGiveFeedbackOpen(true); }}><Send size={17} /> Give feedback</button><button className={primaryButton} type="button" onClick={() => setActivePage("requests")}>View requests ({pendingForMe.length})</button></div></article>
+            <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><p className="text-sm font-bold uppercase tracking-wide text-blue-600">Quick actions</p><h2 className="mt-1 text-xl font-bold text-slate-950">What would you like to do?</h2><p className="mt-2 text-sm text-muted">Request feedback, share feedback directly, or check feedback waiting for you.</p><div className="mt-5 flex flex-wrap gap-3"><button className={primaryButton} type="button" onClick={() => { setError(""); setReplacementRequest(null); setIsGiveFeedbackOpen(false); setIsCreateOpen(true); }}><Plus size={17} /> Request feedback</button><button className={primaryButton} type="button" onClick={() => { setError(""); setIsCreateOpen(false); setIsGiveFeedbackOpen(true); }}><Send size={17} /> Give feedback</button><button className={primaryButton} type="button" onClick={() => openRequestView("waiting")}>View requests ({pendingForMe.length})</button></div></article>
             <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><p className="text-sm font-bold uppercase tracking-wide text-amber-600">Upcoming due dates</p><h2 className="mt-1 text-xl font-bold text-slate-950">Keep on track</h2><div className="mt-4 grid gap-2">{upcomingRequests.length ? upcomingRequests.map((request) => <div key={request.id} className="flex justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm"><span className="font-semibold">{request.type}</span><span className="font-bold text-amber-700">{request.dueDate}</span></div>) : <p className="text-sm text-muted">No upcoming due dates.</p>}</div></article>
             <article className="rounded-2xl border border-line/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.07)]"><p className="text-sm font-bold uppercase tracking-wide text-violet-600">Recent activity</p><h2 className="mt-1 text-xl font-bold text-slate-950">Latest updates</h2><div className="mt-4 grid gap-2">{tableRows.slice(0, 3).map((request) => <button key={request.id} type="button" onClick={() => void openRequest(request.id)} className="rounded-lg bg-slate-50 px-3 py-2 text-left text-sm transition hover:bg-violet-50"><p className="font-semibold text-slate-800">{request.type}</p><p className="mt-1 text-muted">{request.status} · {request.giverName}</p></button>)}</div></article>
           </section>
           </> : null}
 
-          {activePage === "reports" && isSafetyReviewer ? <SCReportReview reports={reports} onReview={(reportId, status) => void reviewReport(reportId, status)} onOpenRequest={(requestId) => void openRequest(requestId)} /> : null}
+          {activePage === "reports" && canReviewReports ? <SCReportReview reports={reports} users={users} currentUserId={currentUserId} isSafetyReviewer={isSafetyReviewer} onAssign={(reportId, reviewerId) => void assignReportReviewers(reportId, reviewerId)} onReview={(reportId, status) => void reviewReport(reportId, status)} onOpenRequest={(requestId) => void openRequest(requestId)} /> : null}
           {activePage === "people" && canManagePeople ? <PeopleManagement users={users} currentUserId={currentUserId} onUpdateStatus={(user, isActive) => void updateUserStatus(user, isActive)} onUpdateRole={(user, role) => void updateUserRole(user, role)} /> : null}
           {activePage === "analytics" && canViewAnalytics ? <AnalyticsDashboard analytics={analytics} /> : null}
 
           {["requests", "history"].includes(activePage) ? <section className="mt-7 overflow-hidden rounded-2xl border border-line/80 bg-white shadow-[0_12px_36px_rgba(15,23,42,0.07)]">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-6 py-5">
               <div className="flex flex-1 flex-wrap items-center gap-3">
-                <input className="field-control max-w-xs" type="search" value={requestSearch} placeholder="Search people, type, or purpose" onChange={(event) => setRequestSearch(event.target.value)} />
-                <select className="field-control w-auto min-w-40" value={requestStatus} onChange={(event) => setRequestStatus(event.target.value)}>
+                <input className="field-control max-w-xs" type="search" value={requestSearch} placeholder="Search people, type, or purpose" onChange={(event) => { setRequestSearch(event.target.value); setRequestPage(1); }} />
+                <select className="field-control w-auto min-w-40" value={requestStatus} onChange={(event) => { setRequestStatus(event.target.value); setRequestPage(1); }}>
                   <option value="all">All statuses</option>
                   {statusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </select>
-                {requestSearch || requestStatus !== "all" ? <button className="text-sm font-semibold text-blue-700 hover:text-blue-900" type="button" onClick={() => { setRequestSearch(""); setRequestStatus("all"); }}>Clear filters</button> : null}
+                {requestView !== "all" ? <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-700">{requestViewLabels[requestView]}</span> : null}
+                {requestSearch || requestStatus !== "all" || requestView !== "all" ? <button className="text-sm font-semibold text-blue-700 hover:text-blue-900" type="button" onClick={resetRequestFilters}>Clear filters</button> : null}
               </div>
               <div className="flex items-center gap-3">
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">{activePage === "history" ? `${visibleRows.length} history records` : `${visibleRows.length} total requests`}</span>
               </div>
             </div>
             <div className="grid gap-3 p-4 xl:hidden">
-              {visibleRows.length ? visibleRows.map((row) => (
+              {visibleRows.length ? paginatedRows.map((row) => (
                 <article key={row.id} className="rounded-xl border border-line bg-slate-50 p-4 shadow-sm">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -558,7 +621,7 @@ export default function Home() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {visibleRows.length ? visibleRows.map((row) => (
+                  {visibleRows.length ? paginatedRows.map((row) => (
                     <tr key={row.id} className="transition-colors hover:bg-[#f5f8ff]">
                       <td className="px-6 py-5">
                         <div className="flex items-center gap-4">
@@ -606,15 +669,16 @@ export default function Home() {
                   )) : (
                     <tr>
                       <td className="px-6 py-12 text-center text-base text-muted" colSpan={7}>
-                        {requestSearch || requestStatus !== "all" ? "No requests match these filters." : activePage === "history" ? "No feedback history yet." : "No feedback requests yet. Create a request from the right panel."}
+                        {requestSearch || requestStatus !== "all" || requestView !== "all" ? "No requests match these filters." : activePage === "history" ? "No feedback history yet." : "No feedback requests yet. Create a request from the right panel."}
                       </td>
                     </tr>
                   )}
                 </tbody>
               </table>
             </div>
-            <div className="flex items-center justify-between border-t border-line px-6 py-4 text-base text-muted">
-              <span>Showing 1 to {visibleRows.length} of {rowsForActivePage.length} {activePage === "history" ? "history records" : "requests"}</span>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-6 py-4 text-base text-muted">
+              <span>Showing {requestRangeStart}–{requestRangeEnd} of {visibleRows.length} {activePage === "history" ? "history records" : "requests"}</span>
+              {visibleRows.length > requestsPerPage ? <div className="flex items-center gap-2"><button className={primaryButton} type="button" disabled={currentRequestPage === 1} onClick={() => setRequestPage((page) => Math.max(1, page - 1))}>Previous</button><span className="text-sm font-semibold text-slate-600">Page {currentRequestPage} of {requestPageCount}</span><button className={primaryButton} type="button" disabled={currentRequestPage === requestPageCount} onClick={() => setRequestPage((page) => Math.min(requestPageCount, page + 1))}>Next</button></div> : null}
             </div>
           </section> : null}
           {error ? (
@@ -819,19 +883,32 @@ function PeopleManagement({ users, currentUserId, onUpdateStatus, onUpdateRole }
   );
 }
 
-function SCReportReview({ reports, onReview, onOpenRequest }) {
+function SCReportReview({ reports, users, currentUserId, isSafetyReviewer, onAssign, onReview, onOpenRequest }) {
   const openReports = reports.filter((report) => report.status === "open");
   return (
     <section className="mt-7 overflow-hidden rounded-2xl border border-line/80 bg-white shadow-[0_12px_36px_rgba(15,23,42,0.07)]">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-6 py-5">
-        <div><p className="font-bold text-slate-950">Reported feedback</p><p className="mt-1 text-sm text-muted">Only SC Team reviewers can access this list.</p></div>
+        <div><p className="font-bold text-slate-950">Reported feedback</p><p className="mt-1 text-sm text-muted">SC receiver cases need an SC reviewer and an independent Justuju reviewer before a final decision.</p></div>
         <span className="rounded-full bg-red-50 px-3 py-1 text-sm font-semibold text-red-700">{openReports.length} open</span>
       </div>
       <div className="divide-y divide-line">
-        {reports.length ? reports.map((report) => <article className="grid gap-4 px-6 py-5 sm:grid-cols-[1fr_auto]" key={report.id}>
-          <div><div className="flex flex-wrap items-center gap-2"><p className="font-bold text-slate-900">Report #{report.id}</p><span className={`rounded-full px-2 py-1 text-xs font-bold ${report.status === "open" ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-600"}`}>{report.status}</span></div><p className="mt-2 text-sm text-slate-700"><span className="font-semibold">Reason:</span> {reportReasonLabel(report.reason)}</p>{report.details ? <p className="mt-2 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-700">{report.details}</p> : null}<p className="mt-3 text-xs text-muted">Reported by {report.reporterName} · {report.templateName} · {formatHistoryTime(report.createdAt)}</p></div>
-          <div className="flex flex-wrap content-start gap-2"><button className={secondaryButton} type="button" onClick={() => onOpenRequest(report.requestId)}>View feedback</button>{report.status === "open" ? <><button className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700" type="button" onClick={() => onReview(report.id, "resolved")}>Resolve</button><button className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50" type="button" onClick={() => onReview(report.id, "dismissed")}>Dismiss</button></> : null}</div>
-        </article>) : <p className="px-6 py-12 text-center text-base text-muted">No feedback reports yet.</p>}
+        {reports.length ? reports.map((report) => {
+          const isSpecialReport = Boolean(report.requiresDualReview);
+          const isAssignedScReviewer = Number(report.scReviewerId) === Number(currentUserId);
+          const isAssignedInternalReviewer = Number(report.internalReviewerId) === Number(currentUserId);
+          // The original receiver remains entitled to read feedback addressed to
+          // them after the safety case closes. The giver remains anonymous to
+          // that receiver. Confidential reviewer access ends with the case.
+          const isOriginalReceiver = Number(report.receiverId) === Number(currentUserId);
+          const hasFinalDecision = ["resolved", "dismissed"].includes(report.status);
+          const canOpenFeedback = isOriginalReceiver || (!hasFinalDecision && (!isSpecialReport ? isSafetyReviewer : isAssignedScReviewer || isAssignedInternalReviewer));
+          const needsDecision = ["open", "in_review"].includes(report.status);
+          const statusClass = report.status === "open" ? "bg-red-100 text-red-700" : report.status === "needs_escalation" ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600";
+          return <article className="grid gap-4 px-6 py-5 sm:grid-cols-[1fr_auto]" key={report.id}>
+            <div><div className="flex flex-wrap items-center gap-2"><p className="font-bold text-slate-900">Report #{report.id}</p><span className={`rounded-full px-2 py-1 text-xs font-bold ${statusClass}`}>{String(report.status).replaceAll("_", " ")}</span></div><p className="mt-2 text-sm text-slate-700"><span className="font-semibold">Reason:</span> {reportReasonLabel(report.reason)}</p>{report.details ? <p className="mt-2 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-700">{report.details}</p> : null}{isSpecialReport ? <div className="mt-3 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-950"><p className="font-semibold">Two-person confidential review</p><p className="mt-1">{report.proposedOutcome ? `SC proposed: ${report.proposedOutcome}.` : report.scReviewerId ? "Waiting for the assigned SC reviewer to propose an outcome." : "Assign an independent Justuju reviewer before review starts."}</p></div> : null}<p className="mt-3 text-xs text-muted">Reported by {report.reporterName} · {report.templateName} · {formatHistoryTime(report.createdAt)}</p></div>
+            <div className="flex flex-wrap content-start gap-2">{isSpecialReport && !report.scReviewerId && isSafetyReviewer && Number(report.receiverId) !== Number(currentUserId) ? <select className="field-control w-56" defaultValue="" onChange={(event) => event.target.value && onAssign(report.id, Number(event.target.value))}><option value="">Select independent reviewer</option>{users.filter((user) => user.isActive && user.role !== "sc" && user.role !== "external" && ![report.giverId, report.receiverId].includes(user.id)).map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select> : null}{canOpenFeedback ? <button className={secondaryButton} type="button" onClick={() => onOpenRequest(report.requestId)}>View feedback</button> : null}{hasFinalDecision && !isOriginalReceiver ? <span className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-500">Feedback access removed</span> : null}{!isSpecialReport && isSafetyReviewer && needsDecision ? <><button className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700" type="button" onClick={() => onReview(report.id, "resolved")}>Resolve</button><button className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50" type="button" onClick={() => onReview(report.id, "dismissed")}>Dismiss</button></> : null}{isSpecialReport && isAssignedScReviewer && needsDecision && !report.proposedOutcome ? <><button className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700" type="button" onClick={() => onReview(report.id, "resolved")}>Propose resolve</button><button className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50" type="button" onClick={() => onReview(report.id, "dismissed")}>Propose dismiss</button></> : null}{isSpecialReport && isAssignedInternalReviewer && needsDecision && report.proposedOutcome ? <><button className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700" type="button" onClick={() => onReview(report.id, "approved")}>Approve {report.proposedOutcome}</button><button className="rounded-lg border border-amber-300 px-3 py-2 text-sm font-semibold text-amber-800 transition hover:bg-amber-50" type="button" onClick={() => onReview(report.id, "disagreed")}>Disagree</button></> : null}</div>
+          </article>;
+        }) : <p className="px-6 py-12 text-center text-base text-muted">No feedback reports yet.</p>}
       </div>
     </section>
   );
@@ -881,29 +958,47 @@ function SidebarItem({ active = false, icon, label, onClick }) {
   );
 }
 
-function StatCard({ icon, tone, label, value, helper }) {
+function StatCard({ icon, tone, label, value, helper, onClick }) {
   const toneClass = {
     blue: "bg-blue-50 text-blue-700",
     green: "bg-green-50 text-green-700",
     amber: "bg-orange-50 text-orange-700",
+    violet: "bg-violet-50 text-violet-700",
   }[tone];
 
-  return (
-    <article className="rounded-2xl border border-line/80 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.06)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(15,23,42,0.09)] sm:p-6">
+  const content = (
+    <>
       <div className="flex items-center gap-4 sm:gap-5">
         <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${toneClass} sm:h-16 sm:w-16`}>
           {icon}
         </div>
         <div>
           <p className="text-base font-semibold text-slate-800 sm:text-lg">{label}</p>
-          <p className={`mt-1 text-4xl font-extrabold tracking-tight sm:text-5xl ${tone === "amber" ? "text-orange-600" : tone === "green" ? "text-green-700" : "text-blue-700"}`}>
+          <p className={`mt-1 text-4xl font-extrabold tracking-tight sm:text-5xl ${tone === "amber" ? "text-orange-600" : tone === "green" ? "text-green-700" : tone === "violet" ? "text-violet-700" : "text-blue-700"}`}>
             {value}
           </p>
         </div>
       </div>
       {helper ? <p className="mt-4 text-sm leading-6 text-muted sm:text-base">{helper}</p> : null}
-    </article>
+    </>
   );
+
+  const className = "rounded-2xl border border-line/80 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.06)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(15,23,42,0.09)] sm:p-6";
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={`View ${label}`}
+        className={`${className} w-full text-left hover:border-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return <article className={className}>{content}</article>;
 }
 
 function RequestProgress({ step, steps = ["Type", "Person", "Review & send"], ariaLabel = "Create feedback request progress" }) {
@@ -976,6 +1071,7 @@ function GiveFeedbackModal({ currentUser, users, templates, onClose, onSubmit })
     setNotice("");
     const result = await onSubmit({
       receiverIds: selectedReceiverIds, templateId: Number(templateId), purpose, isAnonymous,
+      allowScIdentityDisclosure: isAnonymous && hasAcceptedAnonymousPolicy,
       answers: questions.map((question) => ({ questionId: question.id, answer: answers[question.id]?.answer || "", rating: answers[question.id]?.rating || null })),
     });
     setIsSubmitting(false);
@@ -1846,11 +1942,12 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
   const isRequester = Number(currentUserId) === Number(request.requesterId);
   const isGiver = Number(currentUserId) === Number(request.giverId);
   const isReceiver = Number(currentUserId) === Number(request.receiverId);
+  const isSCIdentityReview = Boolean(request.scIdentityAccessGranted);
   const canSubmit = isGiver && ["requested", "in_progress", "overdue"].includes(request.status);
   const canAcknowledge = isReceiver && request.status === "submitted";
   const canCreateFollowUp = (isRequester || isReceiver) && ["acknowledged", "follow_up_needed"].includes(request.status);
   const feedbackWasShared = ["submitted", "acknowledged", "follow_up_needed", "closed"].includes(request.status);
-  const canReportFeedback = feedbackWasShared && isReceiver && request.isAnonymous;
+  const canReportFeedback = feedbackWasShared && isReceiver && request.isAnonymous && !request.hasReportedFeedback;
   const wasStopped = ["cancelled", "declined"].includes(request.status);
   const footerMessage = request.status === "cancelled"
     ? "This feedback request was cancelled."
@@ -1915,11 +2012,13 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
               {request.isDirect ? `${request.giverName} shared feedback with ${request.receiverName}` : `${request.requesterName} requested feedback from ${request.giverName}`}
             </h2>
             <p className="mt-2 text-sm text-slate-600">Share clear, kind, and actionable feedback.</p>
-            {request.isAnonymous && !isGiver ? <p className="mt-3 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">Anonymous feedback · giver name hidden</p> : null}
+            {request.isAnonymous && !isGiver && !isSCIdentityReview ? <p className="mt-3 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">Anonymous feedback · giver name hidden</p> : null}
+            {isSCIdentityReview ? <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-900">Confidential SC review: giver identity is visible for this reported safety case. This access is recorded in the audit trail.</p> : null}
           </div>
           <div className="flex shrink-0 flex-wrap justify-end gap-2">
             {canModerate ? <button className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50" type="button" onClick={() => setIsModerationOpen(true)}>Admin record controls</button> : null}
             {canReportFeedback ? <button className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50" type="button" onClick={() => setIsReportOpen(true)}>Report feedback</button> : null}
+            {request.hasReportedFeedback ? <span className="rounded-lg bg-amber-100 px-3 py-2 text-sm font-semibold text-amber-800">Report {String(request.feedbackReportStatus || "submitted").replaceAll("_", " ")}</span> : null}
           </div>
         </div>
 
@@ -1931,7 +2030,7 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
             <p className="font-semibold text-slate-800">Visibility</p>
-            <p className="mt-1 text-slate-600">{formatVisibility(request.visibility)}</p>
+            <p className="mt-1 text-slate-600">{formatVisibility(request.visibility, request.isDirect)}</p>
             {request.viewers?.length ? <p className="mt-1 text-slate-600">Shared with: {request.viewers.map((viewer) => viewer.name).join(", ")}</p> : null}
           </div>
           {isRequester && !wasStopped && request.status !== "closed" ? <section className="rounded-xl border border-slate-200 bg-white p-4">
@@ -1948,7 +2047,7 @@ function FeedbackDetail({ request, currentUserId, currentUserRole, onClose, onSu
           {!wasStopped ? template.questions.map((question, index) => (
             <Field key={question.id} label={<span className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">{index + 1}</span><span>{question.questionText}</span></span>}>
               <textarea
-                className={`${fieldClass} min-h-28 resize-y border-slate-200 bg-slate-50/70 leading-7 focus:bg-white disabled:bg-surface disabled:text-muted`}
+                className={`${fieldClass} min-h-14 resize-y border-slate-200 bg-slate-50/70 leading-7 focus:bg-white disabled:bg-surface disabled:text-muted`}
                 value={answers[question.id]?.answer ?? ""}
                 disabled={!canSubmit}
                 onChange={(event) => setAnswers({ ...answers, [question.id]: { ...(answers[question.id] || {}), answer: event.target.value } })}
@@ -2488,10 +2587,12 @@ function toTableRow(request) {
   };
 }
 
-function formatVisibility(visibility) {
+function formatVisibility(visibility, isDirect = false) {
   if (visibility === "mentor_lead") return "Shared with one mentor or lead";
   if (visibility === "selected_group") return "Shared with the selected group";
-  return "Private — visible only to requester and feedback giver";
+  return isDirect
+    ? "Private — visible only to feedback giver and feedback receiver"
+    : "Private — visible only to requester and feedback giver";
 }
 
 function formatPurpose(purpose) {

@@ -55,6 +55,8 @@ FRONTEND_ORIGIN=http://localhost:3000
 ```
 
 For password-reset email, also add the `SMTP_*` and `EMAIL_FROM` values shown in `.env.example`.
+Use a transactional mail provider or a Gmail App Password (not a normal Gmail password). `SMTP_SEND_ATTEMPTS`
+and `SMTP_RETRY_DELAY_MS` retry short-lived SMTP/DNS failures automatically.
 
 ### 4. Run the project
 
@@ -72,6 +74,14 @@ npm run dev
 ```
 
 Open <http://localhost:3000>.
+
+### Sharing the app publicly
+
+`localhost` only works on the computer running the app. To let other people register and log in,
+deploy the Docker services to a public HTTPS host, then set `FRONTEND_ORIGIN` to that public URL,
+set a strong unique `JWT_SECRET`, and configure a real SMTP mailbox. The included Docker ports are
+intentionally bound to `127.0.0.1`; expose them through an HTTPS reverse proxy (for example Caddy or
+Nginx) rather than directly exposing the database or API.
 
 ## Quick test
 

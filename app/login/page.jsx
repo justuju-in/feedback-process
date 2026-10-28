@@ -44,7 +44,16 @@ export default function LoginPage() {
           body: JSON.stringify(form),
         },
       );
-      const data = await response.json();
+      const contentType = response.headers.get("content-type") || "";
+      const data = contentType.includes("application/json")
+        ? await response.json()
+        : null;
+
+      if (!data) {
+        throw new Error(
+          "Login service is unavailable. Please try again shortly or contact your administrator.",
+        );
+      }
       if (response.status === 401) {
         throw new Error("Password is incorrect");
       }

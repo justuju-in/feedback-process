@@ -71,7 +71,7 @@ export async function createDirectFeedback(req, res) {
   const submittedReceiverIds = Array.isArray(req.body.receiverIds) ? req.body.receiverIds : [req.body.receiverId];
   const receiverIds = [...new Set(submittedReceiverIds.map(parsePositiveInteger))];
   const templateId = parsePositiveInteger(req.body.templateId);
-  const { answers, purpose, isAnonymous } = req.body;
+  const { answers, purpose, isAnonymous, allowScIdentityDisclosure } = req.body;
 
   if (req.auth.user.role === "external") return res.status(403).json({ message: "External collaborators cannot give direct feedback." });
   if (!receiverIds.length || receiverIds.some((id) => !id) || !templateId) return res.status(400).json({ message: "receiverIds and templateId must be positive integers" });
@@ -82,7 +82,7 @@ export async function createDirectFeedback(req, res) {
     for (const receiverId of receiverIds) {
       const createdFeedback = await createFeedbackRequestInDatabase({
         requesterId: giverId, giverId, receiverId, templateId, purpose,
-        visibility: "private", viewerIds: [], isAnonymous, isDirectFeedback: true,
+        visibility: "private", viewerIds: [], isAnonymous, scIdentityDisclosureAllowed: allowScIdentityDisclosure === true, isDirectFeedback: true,
       });
       feedbackRequests.push(await saveFeedbackAnswers(createdFeedback.id, giverId, answers));
     }
@@ -192,14 +192,24 @@ export async function getFeedbackRequestById(req, res) {
     // to open a reported record unless they are already a normal participant.
     // SC reviewers can open it only when there is an associated report.
     const [[report]] = await getDatabasePool().execute(
-      "SELECT id FROM feedback_reports WHERE request_id = ? LIMIT 1",
+      "SELECT id, reporter_id AS reporterId, status, requires_dual_review AS requiresDualReview, sc_reviewer_id AS scReviewerId, internal_reviewer_id AS internalReviewerId FROM feedback_reports WHERE request_id = ? LIMIT 1",
       [requestId],
     );
     const hasSafetyReport = Boolean(report);
-    const isSCReviewerForReport = role === "sc" && hasSafetyReport;
+    const hasFinalReportDecision = ["resolved", "dismissed"].includes(report?.status);
+    const isAssignedSpecialReviewer = !hasFinalReportDecision
+      && Boolean(report?.requiresDualReview)
+      && [report.scReviewerId, report.internalReviewerId].some((id) => Number(id) === Number(req.auth.user.id));
+    const isSCReviewerForReport = role === "sc" && hasSafetyReport && !hasFinalReportDecision
+      && (!report.requiresDualReview || Number(report.scReviewerId) === Number(req.auth.user.id));
+    const canRevealAnonymousGiverIdentity = (isSCReviewerForReport || isAssignedSpecialReviewer)
+      && feedbackRequest.isAnonymous
+      && feedbackRequest.scIdentityDisclosureAllowed
+      && req.query.recordView === "true";
     const canAccess = isParticipant
       || (!hasSafetyReport && isModerator)
-      || isSCReviewerForReport;
+      || isSCReviewerForReport
+      || isAssignedSpecialReviewer;
 
     if (!canAccess) {
       return res.status(403).json({ message: "You do not have access to this feedback request" });
@@ -208,8 +218,19 @@ export async function getFeedbackRequestById(req, res) {
     // create a noisy, misleading view history.
     if (req.query.recordView === "true") {
       await writeFeedbackAuditEvent({ requestId, actorId: req.auth.user.id, eventType: "feedback_viewed" });
+      if (canRevealAnonymousGiverIdentity) {
+        await writeFeedbackAuditEvent({ requestId, actorId: req.auth.user.id, eventType: "anonymous_giver_identity_viewed_by_sc" });
+      }
     }
-    return res.status(200).json({ feedbackRequest: redactFeedbackRequestForViewer(feedbackRequest, req.auth.user.id) });
+    const responseRequest = redactFeedbackRequestForViewer(feedbackRequest, req.auth.user.id, {
+      revealAnonymousGiver: canRevealAnonymousGiverIdentity,
+    });
+    if (Number(report?.reporterId) === Number(req.auth.user.id)) {
+      responseRequest.hasReportedFeedback = true;
+      responseRequest.feedbackReportStatus = report.status;
+    }
+    if (canRevealAnonymousGiverIdentity) responseRequest.scIdentityAccessGranted = true;
+    return res.status(200).json({ feedbackRequest: responseRequest });
   } catch (error) {
     return respondWithError(res, error);
   }

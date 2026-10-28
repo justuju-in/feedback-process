@@ -48,7 +48,16 @@ export default function RegisterPage() {
           }),
         },
       );
-      const data = await response.json();
+      const contentType = response.headers.get("content-type") || "";
+      const data = contentType.includes("application/json")
+        ? await response.json()
+        : null;
+
+      if (!data) {
+        throw new Error(
+          "Registration service is unavailable. Please try again shortly or contact your administrator.",
+        );
+      }
       if (!response.ok) throw new Error(data.message || "Could not create account");
       router.push("/login?verification=sent");
     } catch (submitError) {

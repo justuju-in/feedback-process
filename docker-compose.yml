@@ -23,6 +23,11 @@ services:
     build:
       context: ./backend
     restart: unless-stopped
+    # Use dependable public resolvers for SMTP lookups. This avoids Docker's
+    # occasional embedded-DNS timeout causing password-reset failures.
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     depends_on:
       database:
         condition: service_healthy

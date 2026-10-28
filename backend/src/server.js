@@ -154,6 +154,34 @@ async function startServer() {
     await getDatabasePool().execute("ALTER TABLE feedback_requests ADD COLUMN is_direct BOOLEAN NOT NULL DEFAULT FALSE AFTER is_anonymous");
   }
 
+  const [[scIdentityDisclosureColumn]] = await getDatabasePool().execute(
+    `SELECT COUNT(*) AS count FROM information_schema.columns
+     WHERE table_schema = DATABASE() AND table_name = 'feedback_requests' AND column_name = 'sc_identity_disclosure_allowed'`,
+  );
+  if (!scIdentityDisclosureColumn.count) {
+    await getDatabasePool().execute("ALTER TABLE feedback_requests ADD COLUMN sc_identity_disclosure_allowed BOOLEAN NOT NULL DEFAULT FALSE AFTER is_anonymous");
+  }
+
+  // SC members who receive anonymous feedback need a separate, two-person
+  // safety review. Add these columns safely for existing databases.
+  for (const [column, definition] of [
+    ["requires_dual_review", "BOOLEAN NOT NULL DEFAULT FALSE AFTER status"],
+    ["sc_reviewer_id", "INT NULL AFTER requires_dual_review"],
+    ["internal_reviewer_id", "INT NULL AFTER sc_reviewer_id"],
+    ["proposed_outcome", "VARCHAR(20) NULL AFTER internal_reviewer_id"],
+    ["sc_proposed_at", "TIMESTAMP NULL AFTER proposed_outcome"],
+    ["internal_decision", "VARCHAR(20) NULL AFTER sc_proposed_at"],
+    ["internal_reviewed_at", "TIMESTAMP NULL AFTER internal_decision"],
+    ["assigned_at", "TIMESTAMP NULL AFTER internal_reviewer_id"],
+  ]) {
+    const [[reportColumn]] = await getDatabasePool().execute(
+      `SELECT COUNT(*) AS count FROM information_schema.columns
+       WHERE table_schema = DATABASE() AND table_name = 'feedback_reports' AND column_name = ?`,
+      [column],
+    );
+    if (!reportColumn.count) await getDatabasePool().execute(`ALTER TABLE feedback_reports ADD COLUMN ${column} ${definition}`);
+  }
+
   const [[discussionAnswerColumn]] = await getDatabasePool().execute(
     `SELECT COUNT(*) AS count FROM information_schema.columns
      WHERE table_schema = DATABASE() AND table_name = 'feedback_discussions' AND column_name = 'answer_id'`,

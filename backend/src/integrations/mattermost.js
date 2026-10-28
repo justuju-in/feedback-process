@@ -1,5 +1,10 @@
 import { getPrimaryFrontendOrigin } from "../config/frontendOrigin.js";
 
+function withEnvironmentLabel(message) {
+  const label = process.env.NOTIFICATION_LABEL?.trim();
+  return label ? `[${label}] ${message}` : message;
+}
+
 function getMattermostUsername(name) {
   const username = name?.trim().split(/\s+/)[0]?.toLowerCase();
   return username ? username.replace(/[^a-zA-Z0-9._-]/g, "") : null;
@@ -92,7 +97,7 @@ async function sendPrivateMattermostMessage({ email, text }) {
   });
   await callMattermostApi(config, "/posts", {
     method: "POST",
-    body: JSON.stringify({ channel_id: directChannel.id, message: text }),
+    body: JSON.stringify({ channel_id: directChannel.id, message: withEnvironmentLabel(text) }),
   });
   return { sent: true, delivery: "direct-message" };
 }
@@ -106,7 +111,7 @@ async function sendMattermostMessage(text, webhookUrl = process.env.MATTERMOST_W
   const response = await fetch(webhookUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text: withEnvironmentLabel(text) }),
   });
 
   if (!response.ok) {

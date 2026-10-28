@@ -33,6 +33,7 @@ const requestSelect = `
     request.purpose,
     request.visibility,
     request.is_anonymous AS isAnonymous,
+    request.sc_identity_disclosure_allowed AS scIdentityDisclosureAllowed,
     request.is_direct AS isDirect,
     request.due_date AS dueDate,
     request.status,
@@ -220,6 +221,7 @@ export async function createFeedbackRequest({
   visibility,
   viewerIds,
   isAnonymous,
+  scIdentityDisclosureAllowed = false,
   isDirectFeedback = false,
 }) {
   if (requesterId === giverId && !isDirectFeedback) {
@@ -275,9 +277,9 @@ export async function createFeedbackRequest({
     await connection.beginTransaction();
     [result] = await connection.execute(
       `INSERT INTO feedback_requests
-         (requester_id, giver_id, receiver_id, template_id, message, due_date, purpose, visibility, is_anonymous, is_direct, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'requested')`,
-      [requesterId, giverId, receiverId, templateId, message || null, normalizedDueDate, normalizedPurpose, normalizedVisibility, normalizedIsAnonymous, isDirectFeedback],
+         (requester_id, giver_id, receiver_id, template_id, message, due_date, purpose, visibility, is_anonymous, sc_identity_disclosure_allowed, is_direct, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'requested')`,
+      [requesterId, giverId, receiverId, templateId, message || null, normalizedDueDate, normalizedPurpose, normalizedVisibility, normalizedIsAnonymous, Boolean(scIdentityDisclosureAllowed), isDirectFeedback],
     );
     const [templateQuestions] = await connection.execute(
       `SELECT id, question_text AS questionText, question_order AS questionOrder
@@ -615,11 +617,11 @@ export async function addFeedbackAttachment({ requestId, actorId, label, url }) 
 // The database preserves the giver for authorised operations, but API output
 // must not reveal that identity to the requester, receiver, or selected viewers.
 // The giver can still recognise their own request and submit their feedback.
-export function redactFeedbackRequestForViewer(feedbackRequest, viewerId) {
+export function redactFeedbackRequestForViewer(feedbackRequest, viewerId, { revealAnonymousGiver = false } = {}) {
   const hideDraft = (request) => Number(request?.draft?.giverId) === Number(viewerId)
     ? request
     : { ...request, draft: null };
-  if (!feedbackRequest?.isAnonymous || Number(feedbackRequest.giverId) === Number(viewerId)) {
+  if (!feedbackRequest?.isAnonymous || Number(feedbackRequest.giverId) === Number(viewerId) || revealAnonymousGiver) {
     return hideDraft(feedbackRequest);
   }
 
