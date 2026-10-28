@@ -518,8 +518,8 @@ export default function Home() {
                 <Sparkles size={15} />
                 Feedback workspace
               </div>
-              <h1 className="text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl">{activePage === "dashboard" ? "Feedback" : activePage === "history" ? "Feedback History" : activePage === "reports" ? "SC Team Review" : activePage === "people" ? "People" : activePage === "analytics" ? "Team analytics" : "Active Feedback Requests"}</h1>
-              <p className="mt-2 text-base text-muted">{activePage === "dashboard" ? "Request, share, and review thoughtful feedback in one place." : activePage === "history" ? "Archived feedback and past request decisions — view only." : activePage === "reports" ? "Private reports that need SC Team review." : activePage === "people" ? "Manage account access and keep open feedback requests accurate." : activePage === "analytics" ? "Anonymous totals to help the team improve its feedback process." : "Open feedback requests that still need an action or response."}</p>
+              <h1 className="text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl">{activePage === "dashboard" ? "Feedback" : activePage === "history" ? "Feedback History" : activePage === "reports" ? "SC Team Review" : activePage === "people" ? "People" : activePage === "analytics" ? "Team analytics" : "Feedback Requests"}</h1>
+              <p className="mt-2 text-base text-muted">{activePage === "dashboard" ? "Request, share, and review thoughtful feedback in one place." : activePage === "history" ? "Review completed feedback and past request decisions." : activePage === "reports" ? "Private reports that need SC Team review." : activePage === "people" ? "Manage account access and keep open feedback requests accurate." : activePage === "analytics" ? "Anonymous totals to help the team improve its feedback process." : "Review, manage, and respond to every feedback request."}</p>
             </div>
           </div>
 
@@ -817,8 +817,8 @@ function AppHeader({ currentUser, onLogout, isLoggingOut, notifications, onNotif
 function MobileNavigation({ activePage, showSCReview, showAnalytics, showPeople, onSelect }) {
   const items = [
     { page: "dashboard", label: "Dashboard", icon: <HomeIcon size={17} /> },
-    { page: "requests", label: "Active requests", icon: <Inbox size={17} /> },
-    { page: "history", label: "Archived feedback", icon: <HistoryIcon size={17} /> },
+    { page: "requests", label: "Requests", icon: <Inbox size={17} /> },
+    { page: "history", label: "History", icon: <HistoryIcon size={17} /> },
     ...(showSCReview ? [{ page: "reports", label: "SC Review", icon: <Inbox size={17} /> }] : []),
     ...(showAnalytics ? [{ page: "analytics", label: "Analytics", icon: <BarChart3 size={17} /> }] : []),
     ...(showPeople ? [{ page: "people", label: "People", icon: <UsersRound size={17} /> }] : []),
@@ -859,8 +859,8 @@ function Sidebar({ activePage, showSCReview, showAnalytics, showPeople, onSelect
       <p className="mb-3 px-3 text-xs font-bold uppercase tracking-[0.14em] text-indigo-200/70">Workspace</p>
       <nav className="space-y-2 text-base font-medium">
         <SidebarItem active={activePage === "dashboard"} icon={<HomeIcon size={22} />} label="Dashboard" onClick={() => onSelect("dashboard")} />
-        <SidebarItem active={activePage === "requests"} icon={<Inbox size={22} />} label="Active requests" onClick={() => onSelect("requests")} />
-        <SidebarItem active={activePage === "history"} icon={<HistoryIcon size={22} />} label="Archived feedback" onClick={() => onSelect("history")} />
+        <SidebarItem active={activePage === "requests"} icon={<Inbox size={22} />} label="Feedback Requests" onClick={() => onSelect("requests")} />
+        <SidebarItem active={activePage === "history"} icon={<HistoryIcon size={22} />} label="Feedback History" onClick={() => onSelect("history")} />
         {showSCReview ? <SidebarItem active={activePage === "reports"} icon={<Inbox size={22} />} label="SC Team Review" onClick={() => onSelect("reports")} /> : null}
         {showAnalytics ? <SidebarItem active={activePage === "analytics"} icon={<BarChart3 size={22} />} label="Team analytics" onClick={() => onSelect("analytics")} /> : null}
         {showPeople ? <SidebarItem active={activePage === "people"} icon={<UsersRound size={22} />} label="People" onClick={() => onSelect("people")} /> : null}
