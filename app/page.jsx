@@ -859,7 +859,7 @@ function Sidebar({ activePage, showSCReview, showAnalytics, showPeople, onSelect
       <p className="mb-3 px-3 text-xs font-bold uppercase tracking-[0.14em] text-indigo-200/70">Workspace</p>
       <nav className="space-y-2 text-base font-medium">
         <SidebarItem active={activePage === "dashboard"} icon={<HomeIcon size={22} />} label="Dashboard" onClick={() => onSelect("dashboard")} />
-        <SidebarItem active={activePage === "requests"} icon={<Inbox size={22} />} label="Active Feedback Requests" onClick={() => onSelect("requests")} />
+        <SidebarItem active={activePage === "requests"} icon={<Inbox size={22} />} label="Active Requests" onClick={() => onSelect("requests")} />
         <SidebarItem active={activePage === "history"} icon={<HistoryIcon size={22} />} label="Feedback History" onClick={() => onSelect("history")} />
         {showSCReview ? <SidebarItem active={activePage === "reports"} icon={<Inbox size={22} />} label="SC Team Review" onClick={() => onSelect("reports")} /> : null}
         {showAnalytics ? <SidebarItem active={activePage === "analytics"} icon={<BarChart3 size={22} />} label="Team analytics" onClick={() => onSelect("analytics")} /> : null}
