@@ -2,6 +2,7 @@ import { submitFeedbackAnswers as saveFeedbackAnswers, saveFeedbackDraft as save
 import {
   createFeedbackRequest as createFeedbackRequestInDatabase,
   getFeedbackRequestById as getFeedbackRequestByIdFromDatabase,
+  getRequestsForUser as getRequestsForUserFromDatabase,
   getRequestsForGiver as getRequestsForGiverFromDatabase,
   getRequestsForReceiver as getRequestsForReceiverFromDatabase,
   getRequestsForRequester as getRequestsForRequesterFromDatabase,
@@ -27,6 +28,46 @@ const allowedActions = ["start", "decline", "cancel", "acknowledge", "close", "h
 function parsePositiveInteger(value) {
   const parsedValue = Number(value);
   return Number.isInteger(parsedValue) && parsedValue > 0 ? parsedValue : null;
+}
+
+const allowedListScopes = new Set(["all", "waiting", "sent", "received", "active", "history"]);
+const allowedListStatuses = new Set(["requested", "in_progress", "overdue", "submitted", "acknowledged", "follow_up_needed", "closed", "cancelled", "declined"]);
+
+export async function getFeedbackRequests(req, res) {
+  const scope = String(req.query.scope || "all").toLowerCase();
+  const status = String(req.query.status || "").toLowerCase();
+  const search = String(req.query.search || "");
+  const hasPagination = req.query.page !== undefined || req.query.limit !== undefined;
+  const page = hasPagination ? parsePositiveInteger(req.query.page || 1) : null;
+  const limit = hasPagination ? parsePositiveInteger(req.query.limit || 25) : null;
+
+  if (!allowedListScopes.has(scope)) {
+    return res.status(400).json({ message: "Choose a valid request scope" });
+  }
+  if (status && !allowedListStatuses.has(status)) {
+    return res.status(400).json({ message: "Choose a valid request status" });
+  }
+  if (search.length > 100) {
+    return res.status(400).json({ message: "Search must be 100 characters or fewer" });
+  }
+  if (hasPagination && (!page || !limit || limit > 100)) {
+    return res.status(400).json({ message: "Pagination requires a positive page and a limit between 1 and 100" });
+  }
+
+  try {
+    const result = await getRequestsForUserFromDatabase({
+      userId: req.auth.user.id,
+      role: req.auth.user.role,
+      search,
+      status,
+      scope,
+      page,
+      limit,
+    });
+    return res.status(200).json({ feedbackRequests: result.requests, pagination: result.pagination });
+  } catch (error) {
+    return respondWithError(res, error);
+  }
 }
 
 export async function createFeedbackRequest(req, res) {

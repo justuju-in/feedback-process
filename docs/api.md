@@ -128,17 +128,25 @@ http://localhost:5000/templates/1/questions
 
 `dueDate` is optional. When provided, it must be a valid `YYYY-MM-DD` date that is not in the past.
 
-### Get requests received by a feedback giver
+### Get requests visible to the logged-in user
 
-`GET /feedback-requests/giver/:userId`
+`GET /feedback-requests`
 
-Example: `GET /feedback-requests/giver/2`
+Returns every feedback request the logged-in user is allowed to see. Participant
+and explicitly shared access are deduplicated in the API. List responses contain
+summary fields only and do not include email addresses.
 
-### Get requests sent by a requester
+Optional query parameters:
 
-`GET /feedback-requests/requester/:userId`
+- `scope`: `all`, `waiting`, `sent`, `received`, `active`, or `history`
+- `status`: a request status such as `requested` or `submitted`
+- `search`: matches requester, giver, template, purpose, or status
+- `page` and `limit`: optional pagination (`limit` cannot exceed 100)
 
-Example: `GET /feedback-requests/requester/1`
+Example: `GET /feedback-requests?scope=waiting&search=learning&page=1&limit=25`
+
+The older giver/requester/receiver/visible endpoints remain temporarily available
+for backwards compatibility, but the application uses this endpoint.
 
 ### Get one request
 
