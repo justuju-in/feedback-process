@@ -5,7 +5,6 @@ import {
   createFeedbackSchedule,
   createFeedbackDiscussion,
   createFollowUp,
-  getFeedbackRequests,
   getFeedbackRequestById,
   getFeedbackSchedules,
   updateFeedbackScheduleStatus,
@@ -29,7 +28,6 @@ const router = Router();
 router.use(requireAuth);
 
 router.post("/", createFeedbackRequest);
-router.get("/", getFeedbackRequests);
 router.post("/schedules", createFeedbackSchedule);
 router.get("/schedules", getFeedbackSchedules);
 router.patch("/schedules/:scheduleId", updateFeedbackScheduleStatus);

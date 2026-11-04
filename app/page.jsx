@@ -137,8 +137,11 @@ export default function Home() {
     latestRequestLoad.current = loadId;
 
     try {
-      const [requestData, scheduleData, notificationData] = await Promise.all([
-        api("/feedback-requests"),
+      const [received, receivedFeedback, sent, shared, scheduleData, notificationData] = await Promise.all([
+        api(`/feedback-requests/giver/${userId}`),
+        api(`/feedback-requests/receiver/${userId}`),
+        api(`/feedback-requests/requester/${userId}`),
+        api(`/feedback-requests/visible/${userId}`),
         api("/feedback-requests/schedules"),
         api("/notifications"),
       ]);
@@ -146,7 +149,15 @@ export default function Home() {
       // When the selected user changes quickly, ignore an older response.
       if (loadId !== latestRequestLoad.current) return;
 
-      setRequests(requestData.feedbackRequests);
+      const merged = new Map(
+        [...received.feedbackRequests, ...receivedFeedback.feedbackRequests, ...sent.feedbackRequests, ...shared.feedbackRequests]
+          .map((request) => [request.id, request]),
+      );
+      const newestFirst = [...merged.values()].sort((first, second) => {
+        const dateDifference = new Date(second.createdAt) - new Date(first.createdAt);
+        return dateDifference || second.id - first.id;
+      });
+      setRequests(newestFirst);
       setSchedules(scheduleData.schedules);
       setNotifications(notificationData.notifications);
       setError("");
@@ -557,6 +568,7 @@ export default function Home() {
                           <Avatar initials={row.requesterInitials} />
                           <div>
                             <p className="text-base font-semibold text-[#111827]">{row.requesterName}</p>
+                            <p className="mt-1 text-sm text-muted">{row.requesterEmail}</p>
                           </div>
                         </div>
                       </td>
@@ -2145,6 +2157,7 @@ function toTableRow(request) {
     id: request.id,
     requesterName: request.requesterName,
     requesterId: request.requesterId,
+    requesterEmail: "",
     requesterInitials: initialsForName(request.requesterName),
     giverId: request.giverId,
     giverName: request.giverName,
