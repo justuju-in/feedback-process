@@ -498,13 +498,14 @@ export async function getRequestsForUser({
   const whereClause = `WHERE ${conditions.join(" AND ")}`;
   const paginationEnabled = Number.isInteger(page) && Number.isInteger(limit);
   const offset = paginationEnabled ? (page - 1) * limit : 0;
-  const paginationClause = paginationEnabled ? " LIMIT ? OFFSET ?" : "";
-  const queryValues = paginationEnabled ? [...values, limit, offset] : values;
+  // page and limit are validated positive integers in the controller. Keeping
+  // them as SQL literals avoids MySQL drivers that reject bound LIMIT values.
+  const paginationClause = paginationEnabled ? ` LIMIT ${limit} OFFSET ${offset}` : "";
   const [requests] = await pool.execute(
     `${requestListSelect}
      ${whereClause}
      ORDER BY request.created_at DESC, request.id DESC${paginationClause}`,
-    queryValues,
+    values,
   );
 
   let total = requests.length;
